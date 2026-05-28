@@ -9,7 +9,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
 class StockViewModel(
-    private val repository: AssetRepository = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt")
+    private val apiRepository: AssetRepository = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt"),
+    private val mockRepository: AssetRepository = MockAssetRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<StockUiState>(StockUiState.Idle)
@@ -22,18 +23,31 @@ class StockViewModel(
         _uiState.value = StockUiState.Loading
 
         viewModelScope.launch {
-            val data = repository.getAssetData(t)
+            // Tenta primeiro via API Real
+            val apiData = apiRepository.getAssetData(t)
             
-            if (data == null) {
-                _uiState.value = StockUiState.Error("Ticker não encontrado ou formato inválido")
+            if (apiData != null) {
+                // Sucesso com API Real
+                val score = calculateScoreForAsset(apiData)
+                _uiState.value = StockUiState.Success(apiData, score, isMockData = false)
             } else {
-                val score = when (data) {
-                    is AssetData.Stock -> calculateStockScore(data)
-                    is AssetData.Fii -> calculateFiiScore(data)
-                    is AssetData.Etf -> calculateEtfScore(data)
+                // Falha na API (ou acesso negado), tenta via Mock
+                val mockData = mockRepository.getAssetData(t)
+                if (mockData != null) {
+                    val score = calculateScoreForAsset(mockData)
+                    _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
+                } else {
+                    _uiState.value = StockUiState.Error("Ticker não encontrado em nenhuma base.")
                 }
-                _uiState.value = StockUiState.Success(data, score)
             }
+        }
+    }
+
+    private fun calculateScoreForAsset(data: AssetData): Double {
+        return when (data) {
+            is AssetData.Stock -> calculateStockScore(data)
+            is AssetData.Fii -> calculateFiiScore(data)
+            is AssetData.Etf -> calculateEtfScore(data)
         }
     }
 
@@ -50,7 +64,6 @@ class StockViewModel(
             c.add("Valuation esticado (acima de Graham)")
         }
 
-        // 1.1 P/VP para Ações (Novo critério explícito)
         if (data.pvp <= 1.5) {
             score += 1.0
             p.add("P/VP atrativo (<= 1.5)")
@@ -58,7 +71,6 @@ class StockViewModel(
             c.add("P/VP elevado (Acima de 2.5)")
         }
 
-        // 1.2 P/L para Ações
         if (data.pl in 1.0..15.0) {
             score += 1.0
             p.add("P/L equilibrado (Preço/Lucro entre 1 e 15)")
@@ -66,10 +78,11 @@ class StockViewModel(
             c.add("P/L alto (Expectativa de crescimento já no preço)")
         }
 
-        // 2. Rentabilidade e Eficiência (3.0 pts)
         if (data.roe >= 0.15) {
             score += 1.0
             p.add("Rentabilidade sólida (ROE > 15%)")
+        } else if (data.roe < 0.08) {
+            c.add("ROE abaixo da média de mercado")
         }
 
         if (data.dividendYield >= 0.06) {
@@ -101,7 +114,7 @@ class StockViewModel(
 
         if (data.paidDividendsLast5Years) p.add("Histórico de dividendos consistente")
         if (data.payout in 0.25..0.75) {
-            score += 1.0
+            score += 0.5
             p.add("Payout saudável e sustentável")
         }
 
@@ -197,6 +210,6 @@ class StockViewModel(
 sealed class StockUiState {
     data object Idle : StockUiState()
     data object Loading : StockUiState()
-    data class Success(val data: AssetData, val score: Double) : StockUiState()
+    data class Success(val data: AssetData, val score: Double, val isMockData: Boolean) : StockUiState()
     data class Error(val message: String) : StockUiState()
 }

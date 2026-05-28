@@ -1,5 +1,6 @@
 package com.example.b3check
 
+import android.util.Log
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
@@ -17,7 +18,7 @@ class BrapiAssetRepository(private val token: String) : AssetRepository {
             val response = service.getQuote(ticker, token)
             response.results.firstOrNull()?.toAssetData()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("BrapiRepo", "Error fetching ticker $ticker", e)
             null
         }
     }

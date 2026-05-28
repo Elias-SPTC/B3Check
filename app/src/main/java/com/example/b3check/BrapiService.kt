@@ -9,7 +9,6 @@ interface BrapiService {
     suspend fun getQuote(
         @Path("ticker") ticker: String,
         @Query("token") token: String,
-        @Query("fundamental") fundamental: Boolean = true,
         @Query("modules") modules: String = "financialData,defaultKeyStatistics"
     ): BrapiResponse
 }

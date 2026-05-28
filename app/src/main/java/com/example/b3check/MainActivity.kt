@@ -89,6 +89,19 @@ fun StockAnalysisScreen(
         when (val state = uiState) {
             is StockUiState.Loading -> CircularProgressIndicator()
             is StockUiState.Success -> {
+                if (state.isMockData) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Text(
+                            text = "Aviso: Acesso à API Brapi limitado. Exibindo análise baseada em dados históricos/simulados.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(8.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
                 ScoreResult(state.data, state.score)
             }
             is StockUiState.Error -> {
