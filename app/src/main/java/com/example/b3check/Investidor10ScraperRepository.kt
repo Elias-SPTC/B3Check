@@ -63,7 +63,7 @@ class Investidor10ScraperRepository : AssetRepository {
                 val propertyCount = parseDouble(findIndicatorValue(doc, "NÚMERO DE IMÓVEIS", "QTD DE IMÓVEIS")).toInt()
                 
                 AssetData.Fii(
-                    ticker = ticker, currentPrice = price, sector = "Imobiliário",
+                    ticker = ticker, name = pageTitle, currentPrice = price, sector = "Imobiliário",
                     pvp = pvp, vacancy = vacancy, yield12m = dy, ffoMargin = 0.8,
                     multiProperty = propertyCount > 1, multiTenant = true, capRate = 0.08,
                     weightedLeaseTerm = 5.0, managementFee = 0.01, 
@@ -80,7 +80,7 @@ class Investidor10ScraperRepository : AssetRepository {
                 }
             } else {
                 AssetData.Stock(
-                    ticker = ticker, currentPrice = price, sector = "Ações",
+                    ticker = ticker, name = pageTitle, currentPrice = price, sector = "Ações",
                     lpa = if (pl > 0) price / pl else 1.0, 
                     vpa = if (pvp > 0) price / pvp else 1.0,
                     avgDividend3Years = dy * price, paidDividendsLast5Years = true,

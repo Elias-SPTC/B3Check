@@ -2,6 +2,7 @@ package com.example.b3check
 
 sealed class AssetData {
     abstract val ticker: String
+    abstract val name: String
     abstract val currentPrice: Double
     abstract val sector: String
     var pros: List<String> = emptyList()
@@ -10,6 +11,7 @@ sealed class AssetData {
 
     data class Stock(
         override val ticker: String,
+        override val name: String,
         override val currentPrice: Double,
         override val sector: String,
         val lpa: Double,
@@ -33,6 +35,7 @@ sealed class AssetData {
 
     data class Fii(
         override val ticker: String,
+        override val name: String,
         override val currentPrice: Double,
         override val sector: String,
         val pvp: Double,
@@ -50,6 +53,7 @@ sealed class AssetData {
 
     data class Etf(
         override val ticker: String,
+        override val name: String,
         override val currentPrice: Double,
         override val sector: String,
         val adminFee: Double,

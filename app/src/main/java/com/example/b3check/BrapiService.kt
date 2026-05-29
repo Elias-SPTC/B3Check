@@ -68,6 +68,7 @@ fun AssetDto.toAssetData(): AssetData {
     return when {
         isEtf -> AssetData.Etf(
             ticker = symbol,
+            name = longName ?: symbol,
             currentPrice = regularMarketPrice ?: 0.0,
             sector = sector ?: "ETF",
             adminFee = 0.003,
@@ -80,6 +81,7 @@ fun AssetDto.toAssetData(): AssetData {
         )
         isFii -> AssetData.Fii(
             ticker = symbol,
+            name = longName ?: symbol,
             currentPrice = regularMarketPrice ?: 0.0,
             sector = sector ?: "Imobiliário",
             pvp = priceToBook ?: defaultKeyStatistics?.priceToBook ?: 1.0,
@@ -96,6 +98,7 @@ fun AssetDto.toAssetData(): AssetData {
         )
         else -> AssetData.Stock(
             ticker = symbol,
+            name = longName ?: symbol,
             currentPrice = regularMarketPrice ?: 0.0,
             sector = sector ?: "Ações",
             lpa = defaultKeyStatistics?.trailingEps ?: 0.0,

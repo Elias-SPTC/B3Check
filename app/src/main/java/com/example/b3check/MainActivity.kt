@@ -75,7 +75,7 @@ fun StockAnalysisScreen(
                 val isSelected = searchSource == source
                 val color = when(source) {
                     SearchSource.BRAPI -> Color(0xFF2196F3)
-                    SearchSource.INVESTIDOR10 -> Color(0xFF4CAF50)
+                    SearchSource.FUNDAMENTUS -> Color(0xFF4CAF50)
                     SearchSource.HYBRID -> Color(0xFFFF9800)
                     SearchSource.MOCK -> Color(0xFF9E9E9E)
                 }
@@ -158,6 +158,14 @@ fun ScoreResult(data: AssetData, score: Double) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
+        Text(
+            text = "${data.ticker} - ${data.name}",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.height(4.dp))
+
         Text(
             text = "Nota Final: ${String.format("%.1f", score)} / 10",
             style = MaterialTheme.typography.headlineMedium,

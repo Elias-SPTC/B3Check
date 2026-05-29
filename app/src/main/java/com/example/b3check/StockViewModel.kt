@@ -13,7 +13,7 @@ import kotlin.math.sqrt
 
 enum class SearchSource(val label: String) {
     BRAPI("Brapi"),
-    INVESTIDOR10("Investidor10"),
+    FUNDAMENTUS("Fundamentus"),
     HYBRID("Híbrido"),
     MOCK("Simulação")
 }
@@ -21,7 +21,7 @@ enum class SearchSource(val label: String) {
 class StockViewModel : ViewModel() {
 
     private val apiRepo = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt")
-    private val scraperRepo = Investidor10ScraperRepository()
+    private val scraperRepo = FundamentusScraperRepository()
     private val hybridRepo = HybridAssetRepository(apiRepo, scraperRepo)
     private val mockRepo = MockAssetRepository()
 
@@ -43,7 +43,7 @@ class StockViewModel : ViewModel() {
 
         val selectedRepo = when (_searchSource.value) {
             SearchSource.BRAPI -> apiRepo
-            SearchSource.INVESTIDOR10 -> scraperRepo
+            SearchSource.FUNDAMENTUS -> scraperRepo
             SearchSource.HYBRID -> hybridRepo
             SearchSource.MOCK -> mockRepo
         }
