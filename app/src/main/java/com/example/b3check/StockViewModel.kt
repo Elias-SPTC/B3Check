@@ -8,13 +8,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
-class StockViewModel(
-    private val apiRepository: AssetRepository = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt"),
-    private val mockRepository: AssetRepository = MockAssetRepository()
-) : ViewModel() {
+enum class SearchSource(val label: String) {
+    BRAPI("Brapi API"),
+    INVESTIDOR10("Investidor10 (Web)"),
+    HYBRID("Híbrido (Preço + Fundamentos)"),
+    MOCK("Simulação (Mock)")
+}
+
+class StockViewModel : ViewModel() {
+
+    private val apiRepo = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt")
+    private val scraperRepo = Investidor10ScraperRepository()
+    private val hybridRepo = HybridAssetRepository(apiRepo, scraperRepo)
+    private val mockRepo = MockAssetRepository()
+
+    private val _searchSource = MutableStateFlow(SearchSource.HYBRID)
+    val searchSource: StateFlow<SearchSource> = _searchSource.asStateFlow()
 
     private val _uiState = MutableStateFlow<StockUiState>(StockUiState.Idle)
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
+
+    fun setSource(source: SearchSource) {
+        _searchSource.value = source
+    }
 
     fun analyzeTicker(ticker: String) {
         val t = ticker.trim().uppercase()
@@ -22,22 +38,31 @@ class StockViewModel(
 
         _uiState.value = StockUiState.Loading
 
+        val selectedRepo = when (_searchSource.value) {
+            SearchSource.BRAPI -> apiRepo
+            SearchSource.INVESTIDOR10 -> scraperRepo
+            SearchSource.HYBRID -> hybridRepo
+            SearchSource.MOCK -> mockRepo
+        }
+
         viewModelScope.launch {
-            // Tenta primeiro via API Real
-            val apiData = apiRepository.getAssetData(t)
+            val data = selectedRepo.getAssetData(t)
             
-            if (apiData != null) {
-                // Sucesso com API Real
-                val score = calculateScoreForAsset(apiData)
-                _uiState.value = StockUiState.Success(apiData, score, isMockData = false)
+            if (data != null) {
+                val score = calculateScoreForAsset(data)
+                _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
             } else {
-                // Falha na API (ou acesso negado), tenta via Mock
-                val mockData = mockRepository.getAssetData(t)
-                if (mockData != null) {
-                    val score = calculateScoreForAsset(mockData)
-                    _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
+                // Tenta fallback para Mock caso a fonte principal falhe e não seja Mock
+                if (_searchSource.value != SearchSource.MOCK) {
+                    val mockData = mockRepo.getAssetData(t)
+                    if (mockData != null) {
+                        val score = calculateScoreForAsset(mockData)
+                        _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
+                    } else {
+                        _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
+                    }
                 } else {
-                    _uiState.value = StockUiState.Error("Ticker não encontrado em nenhuma base.")
+                    _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
                 }
             }
         }
@@ -75,14 +100,12 @@ class StockViewModel(
             score += 1.0
             p.add("P/L equilibrado (Preço/Lucro entre 1 e 15)")
         } else if (data.pl > 25.0) {
-            c.add("P/L alto (Expectativa de crescimento já no preço)")
+            c.add("P/L alto (Expectativa de crescimento)")
         }
 
         if (data.roe >= 0.15) {
             score += 1.0
             p.add("Rentabilidade sólida (ROE > 15%)")
-        } else if (data.roe < 0.08) {
-            c.add("ROE abaixo da média de mercado")
         }
 
         if (data.dividendYield >= 0.06) {
@@ -93,8 +116,6 @@ class StockViewModel(
         if (data.netMargin >= 0.12) {
             score += 1.5
             p.add("Boa Margem Líquida")
-        } else {
-            c.add("Margem Líquida estreita")
         }
 
         if (data.sector == "Bancário") {

@@ -6,6 +6,7 @@ sealed class AssetData {
     abstract val sector: String
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
+    var mockedFields: Set<String> = emptySet()
 
     data class Stock(
         override val ticker: String,
