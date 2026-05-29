@@ -348,6 +348,7 @@ fun FiiResultPreview() {
         ScoreResult(
             data = AssetData.Fii(
                 ticker = "HGLG11",
+                name = "CSHG Logística",
                 currentPrice = 160.0,
                 sector = "Logística",
                 pvp = 1.02,
