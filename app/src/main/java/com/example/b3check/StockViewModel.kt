@@ -1,18 +1,21 @@
 package com.example.b3check
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlin.math.sqrt
 
 enum class SearchSource(val label: String) {
-    BRAPI("Brapi API"),
-    INVESTIDOR10("Investidor10 (Web)"),
-    HYBRID("Híbrido (Preço + Fundamentos)"),
-    MOCK("Simulação (Mock)")
+    BRAPI("Brapi"),
+    INVESTIDOR10("Investidor10"),
+    HYBRID("Híbrido"),
+    MOCK("Simulação")
 }
 
 class StockViewModel : ViewModel() {
@@ -46,24 +49,42 @@ class StockViewModel : ViewModel() {
         }
 
         viewModelScope.launch {
-            val data = selectedRepo.getAssetData(t)
-            
-            if (data != null) {
-                val score = calculateScoreForAsset(data)
-                _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
-            } else {
-                // Tenta fallback para Mock caso a fonte principal falhe e não seja Mock
-                if (_searchSource.value != SearchSource.MOCK) {
-                    val mockData = mockRepo.getAssetData(t)
-                    if (mockData != null) {
-                        val score = calculateScoreForAsset(mockData)
-                        _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
-                    } else {
-                        _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
+            try {
+                Log.d("StockViewModel", "Iniciando análise para $t via ${_searchSource.value}")
+                
+                // Limite de segurança de 10s para a operação completa do repositório
+                val data = try {
+                    withTimeout(10000) {
+                        selectedRepo.getAssetData(t)
                     }
-                } else {
-                    _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
+                } catch (e: Exception) {
+                    Log.e("StockViewModel", "Timeout ou erro no repositório para $t: ${e.message}")
+                    null
                 }
+
+                Log.d("StockViewModel", "Dados recebidos para $t: ${data != null}")
+                
+                if (data != null) {
+                    val score = calculateScoreForAsset(data)
+                    _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
+                } else {
+                    // Tenta fallback para Mock caso a fonte principal falhe e não seja Mock
+                    if (_searchSource.value != SearchSource.MOCK) {
+                        Log.d("StockViewModel", "Fonte principal falhou para $t, tentando Mock")
+                        val mockData = mockRepo.getAssetData(t)
+                        if (mockData != null) {
+                            val score = calculateScoreForAsset(mockData)
+                            _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
+                        } else {
+                            _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
+                        }
+                    } else {
+                        _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("StockViewModel", "Erro fatal na análise de $t", e)
+                _uiState.value = StockUiState.Error("Ocorreu um erro interno. Tente novamente.")
             }
         }
     }

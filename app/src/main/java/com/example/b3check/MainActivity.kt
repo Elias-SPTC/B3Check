@@ -63,7 +63,7 @@ fun StockAnalysisScreen(
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Menu de Seleção de Fonte de Dados
+        // Menu de Seleção de Fonte de Dados com Cores
         ScrollableTabRow(
             selectedTabIndex = searchSource.ordinal,
             edgePadding = 0.dp,
@@ -71,11 +71,25 @@ fun StockAnalysisScreen(
             containerColor = Color.Transparent,
             divider = {}
         ) {
-            SearchSource.values().forEach { source ->
+            SearchSource.entries.forEach { source ->
+                val isSelected = searchSource == source
+                val color = when(source) {
+                    SearchSource.BRAPI -> Color(0xFF2196F3)
+                    SearchSource.INVESTIDOR10 -> Color(0xFF4CAF50)
+                    SearchSource.HYBRID -> Color(0xFFFF9800)
+                    SearchSource.MOCK -> Color(0xFF9E9E9E)
+                }
                 Tab(
-                    selected = searchSource == source,
+                    selected = isSelected,
                     onClick = { viewModel.setSource(source) },
-                    text = { Text(source.label, style = MaterialTheme.typography.labelSmall) }
+                    text = { 
+                        Text(
+                            source.label, 
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        ) 
+                    }
                 )
             }
         }
