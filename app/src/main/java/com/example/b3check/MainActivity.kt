@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -77,6 +78,7 @@ fun StockAnalysisScreen(
                     SearchSource.BRAPI -> Color(0xFF2196F3)
                     SearchSource.FUNDAMENTUS -> Color(0xFF4CAF50)
                     SearchSource.HYBRID -> Color(0xFFFF9800)
+                    SearchSource.MANUAL -> Color(0xFF673AB7)
                     SearchSource.MOCK -> Color(0xFF9E9E9E)
                 }
                 Tab(
@@ -113,7 +115,7 @@ fun StockAnalysisScreen(
             modifier = Modifier.fillMaxWidth(),
             enabled = tickerInput.isNotBlank()
         ) {
-            Text("Analisar Ativo")
+            Text(if (searchSource == SearchSource.MANUAL) "Buscar/Carregar Ativo" else "Analisar Ativo")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -121,20 +123,29 @@ fun StockAnalysisScreen(
         when (val state = uiState) {
             is StockUiState.Loading -> CircularProgressIndicator()
             is StockUiState.Success -> {
-                if (state.isMockData) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Text(
-                            text = "Aviso: Acesso à API Brapi limitado. Exibindo análise baseada em dados históricos/simulados.",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(8.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
+                if (searchSource == SearchSource.MANUAL) {
+                    ManualEditor(
+                        data = state.data,
+                        score = state.score,
+                        onSave = { updatedData -> viewModel.saveManualAsset(updatedData) },
+                        onAnalyze = { viewModel.saveManualAsset(it) }
+                    )
+                } else {
+                    if (state.isMockData) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                        ) {
+                            Text(
+                                text = "Aviso: Acesso à API Brapi limitado. Exibindo análise baseada em dados históricos/simulados.",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(8.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
                     }
+                    ScoreResult(state.data, state.score)
                 }
-                ScoreResult(state.data, state.score)
             }
             is StockUiState.Error -> {
                 Text(text = state.message, color = MaterialTheme.colorScheme.error)
@@ -143,6 +154,128 @@ fun StockAnalysisScreen(
                 Text("Digite um ticker para começar", color = Color.Gray)
             }
         }
+    }
+}
+
+@Composable
+fun ManualEditor(
+    data: AssetData,
+    score: Double,
+    onSave: (AssetData) -> Unit,
+    onAnalyze: (AssetData) -> Unit
+) {
+    var editedData by remember(data) { mutableStateOf(data) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Modo Edição Manual", style = MaterialTheme.typography.titleLarge, color = Color(0xFF673AB7))
+        Text("Os dados abaixo foram carregados. Você pode alterá-los antes de salvar ou analisar.", style = MaterialTheme.typography.bodySmall)
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Se já tivermos calculado um score (maior que 0), mostramos o resultado no topo
+        if (score > 0) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            ) {
+                Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Resultado da Análise Manual", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Nota: ${String.format("%.1f", score)} / 10",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = if (score >= 6.0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                    )
+                }
+            }
+        }
+
+        // Campos comuns
+        EditRow("Nome", editedData.name) { newValue ->
+            editedData = when(val d = editedData) {
+                is AssetData.Stock -> d.copy(name = newValue)
+                is AssetData.Fii -> d.copy(name = newValue)
+                is AssetData.Etf -> d.copy(name = newValue)
+            }
+        }
+        EditRow("Preço Atual", editedData.currentPrice.toString(), isNumber = true) { newValue ->
+            val v = newValue.toDoubleOrNull() ?: 0.0
+            editedData = when(val d = editedData) {
+                is AssetData.Stock -> d.copy(currentPrice = v)
+                is AssetData.Fii -> d.copy(currentPrice = v)
+                is AssetData.Etf -> d.copy(currentPrice = v)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Indicadores específicos (${if (editedData is AssetData.Stock) "Ação" else if (editedData is AssetData.Fii) "FII" else "ETF"})", fontWeight = FontWeight.Bold)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        when (val d = editedData) {
+            is AssetData.Stock -> {
+                EditRow("LPA", d.lpa.toString(), true) { editedData = d.copy(lpa = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("VPA", d.vpa.toString(), true) { editedData = d.copy(vpa = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("ROE (%)", (d.roe * 100).toString(), true) { editedData = d.copy(roe = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("P/VP", d.pvp.toString(), true) { editedData = d.copy(pvp = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("P/L", d.pl.toString(), true) { editedData = d.copy(pl = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("DY (%)", (d.dividendYield * 100).toString(), true) { editedData = d.copy(dividendYield = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("Margem Líq (%)", (d.netMargin * 100).toString(), true) { editedData = d.copy(netMargin = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("Dívida/Patrimônio", d.debtToEquity.toString(), true) { editedData = d.copy(debtToEquity = it.toDoubleOrNull() ?: 0.0) }
+            }
+            is AssetData.Fii -> {
+                EditRow("P/VP", d.pvp.toString(), true) { editedData = d.copy(pvp = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("DY 12m (%)", (d.yield12m * 100).toString(), true) { editedData = d.copy(yield12m = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("Vacância (%)", (d.vacancy * 100).toString(), true) { editedData = d.copy(vacancy = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("WALT (anos)", d.weightedLeaseTerm.toString(), true) { editedData = d.copy(weightedLeaseTerm = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("Nº Imóveis", d.propertyCount.toString(), true) { editedData = d.copy(propertyCount = it.toIntOrNull() ?: 0) }
+            }
+            is AssetData.Etf -> {
+                EditRow("Taxa Adm (%)", (d.adminFee * 100).toString(), true) { editedData = d.copy(adminFee = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
+                EditRow("Vol. Diário", d.avgDailyVolume.toString(), true) { editedData = d.copy(avgDailyVolume = it.toDoubleOrNull() ?: 0.0) }
+                EditRow("Holdings", d.numberOfHoldings.toString(), true) { editedData = d.copy(numberOfHoldings = it.toIntOrNull() ?: 0) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { onSave(editedData) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Salvar")
+            }
+            Button(
+                onClick = { onAnalyze(editedData) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Analisar")
+            }
+        }
+
+        if (score > 0) {
+            Spacer(modifier = Modifier.height(24.dp))
+            ProsConsSection(data.pros, data.cons)
+        }
+    }
+}
+
+@Composable
+fun EditRow(label: String, value: String, isNumber: Boolean = false, onValueChange: (String) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    ) {
+        Text(text = label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1.5f),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodySmall,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (isNumber) KeyboardType.Decimal else KeyboardType.Text
+            )
+        )
     }
 }
 

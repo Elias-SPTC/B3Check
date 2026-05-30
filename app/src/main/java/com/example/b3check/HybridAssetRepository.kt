@@ -16,14 +16,15 @@ class HybridAssetRepository(
         val scraperData = scraperDeferred.await() ?: return@coroutineScope null
         val apiData = apiDeferred.await()
 
-        if (apiData != null) {
-            // Combina: Preço em tempo real da API com Indicadores completos do Scraper
+        // Só substitui se a API retornar um preço válido (maior que zero)
+        if (apiData != null && apiData.currentPrice > 0) {
             when (scraperData) {
                 is AssetData.Stock -> scraperData.copy(currentPrice = apiData.currentPrice)
                 is AssetData.Fii -> scraperData.copy(currentPrice = apiData.currentPrice)
                 is AssetData.Etf -> scraperData.copy(currentPrice = apiData.currentPrice)
             }
         } else {
+            // Se a API falhou ou retornou preço 0, mantém o dado original do Scraper
             scraperData
         }
     }

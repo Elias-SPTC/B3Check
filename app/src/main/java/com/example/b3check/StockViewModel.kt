@@ -1,9 +1,9 @@
 package com.example.b3check
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,11 +15,13 @@ enum class SearchSource(val label: String) {
     BRAPI("Brapi"),
     FUNDAMENTUS("Fundamentus"),
     HYBRID("Híbrido"),
+    MANUAL("Manual"),
     MOCK("Simulação")
 }
 
-class StockViewModel : ViewModel() {
+class StockViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val db = ManualAssetDatabase(application)
     private val apiRepo = BrapiAssetRepository("8BPJ5K2iUYL59vbXQdK6Mt")
     private val scraperRepo = FundamentusScraperRepository()
     private val hybridRepo = HybridAssetRepository(apiRepo, scraperRepo)
@@ -41,51 +43,73 @@ class StockViewModel : ViewModel() {
 
         _uiState.value = StockUiState.Loading
 
-        val selectedRepo = when (_searchSource.value) {
-            SearchSource.BRAPI -> apiRepo
-            SearchSource.FUNDAMENTUS -> scraperRepo
-            SearchSource.HYBRID -> hybridRepo
-            SearchSource.MOCK -> mockRepo
-        }
-
         viewModelScope.launch {
             try {
                 Log.d("StockViewModel", "Iniciando análise para $t via ${_searchSource.value}")
                 
-                // Limite de segurança de 10s para a operação completa do repositório
-                val data = try {
-                    withTimeout(10000) {
-                        selectedRepo.getAssetData(t)
+                var data: AssetData? = null
+                
+                if (_searchSource.value == SearchSource.MANUAL) {
+                    data = db.getAsset(t)
+                    if (data == null) {
+                        Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, buscando via Híbrido")
+                        data = fetchFromRepo(hybridRepo, t)
                     }
-                } catch (e: Exception) {
-                    Log.e("StockViewModel", "Timeout ou erro no repositório para $t: ${e.message}")
-                    null
+                } else {
+                    val selectedRepo = when (_searchSource.value) {
+                        SearchSource.BRAPI -> apiRepo
+                        SearchSource.FUNDAMENTUS -> scraperRepo
+                        SearchSource.HYBRID -> hybridRepo
+                        SearchSource.MOCK -> mockRepo
+                        SearchSource.MANUAL -> hybridRepo // Should not happen due to if above
+                    }
+                    data = fetchFromRepo(selectedRepo, t)
                 }
 
-                Log.d("StockViewModel", "Dados recebidos para $t: ${data != null}")
-                
                 if (data != null) {
                     val score = calculateScoreForAsset(data)
                     _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
                 } else {
-                    // Tenta fallback para Mock caso a fonte principal falhe e não seja Mock
-                    if (_searchSource.value != SearchSource.MOCK) {
-                        Log.d("StockViewModel", "Fonte principal falhou para $t, tentando Mock")
-                        val mockData = mockRepo.getAssetData(t)
-                        if (mockData != null) {
-                            val score = calculateScoreForAsset(mockData)
-                            _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
-                        } else {
-                            _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
-                        }
-                    } else {
-                        _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
-                    }
+                    handleError(t)
                 }
             } catch (e: Exception) {
                 Log.e("StockViewModel", "Erro fatal na análise de $t", e)
                 _uiState.value = StockUiState.Error("Ocorreu um erro interno. Tente novamente.")
             }
+        }
+    }
+
+    private suspend fun fetchFromRepo(repo: AssetRepository, ticker: String): AssetData? {
+        return try {
+            withTimeout(10000) {
+                repo.getAssetData(ticker)
+            }
+        } catch (e: Exception) {
+            Log.e("StockViewModel", "Erro no repositório: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun handleError(ticker: String) {
+        if (_searchSource.value != SearchSource.MOCK) {
+            val mockData = mockRepo.getAssetData(ticker)
+            if (mockData != null) {
+                val score = calculateScoreForAsset(mockData)
+                _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
+            } else {
+                _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
+            }
+        } else {
+            _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
+        }
+    }
+
+    fun saveManualAsset(data: AssetData) {
+        viewModelScope.launch {
+            db.saveAsset(data)
+            // Atualiza a UI com os novos dados e score recalculado
+            val score = calculateScoreForAsset(data)
+            _uiState.value = StockUiState.Success(data, score, isMockData = false)
         }
     }
 
