@@ -50,7 +50,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 var data: AssetData? = null
                 
                 if (_searchSource.value == SearchSource.MANUAL) {
-                    data = db.getAsset(t)
+                    data = try { db.getAsset(t) } catch(e: Exception) { null }
                     if (data == null) {
                         Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, buscando via Híbrido")
                         data = fetchFromRepo(hybridRepo, t)
@@ -126,6 +126,12 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
+        // DY Médio 5 anos
+        if (data.avgDividend5Years >= 0.06) {
+            score += 1.0
+            p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
+        }
+
         val grahamPrice = sqrt(22.5 * data.lpa * data.vpa)
         if (data.currentPrice <= grahamPrice) {
             score += 1.0
@@ -193,6 +199,18 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         var score = 0.0
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
+
+        // Bonus para Gestão Ativa
+        if (data.managementType.contains("Ativa", ignoreCase = true)) {
+            score += 0.5
+            p.add("Gestão Ativa (Potencial de alpha)")
+        }
+
+        // DY Médio 5 anos
+        if (data.avgYield5Years >= 0.08) {
+            score += 1.0
+            p.add("DY Histórico sólido (> 8% nos últimos 5 anos)")
+        }
 
         if (data.pvp in 0.92..1.03) {
             score += 3.0

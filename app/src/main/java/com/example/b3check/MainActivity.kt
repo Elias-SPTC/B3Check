@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -13,12 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.b3check.ui.theme.B3CheckTheme
 
@@ -33,15 +33,13 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
                         CenterAlignedTopAppBar(
-                            title = { Text("B3Check - Análise Inteligente") }
+                            title = { Text("B3Check") }
                         )
                     }
                 ) { innerPadding ->
-                    StockAnalysisScreen(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .fillMaxSize()
-                    )
+                    Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+                        StockAnalysisScreen()
+                    }
                 }
             }
         }
@@ -50,7 +48,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun StockAnalysisScreen(
-    modifier: Modifier = Modifier,
     viewModel: StockViewModel = viewModel()
 ) {
     var tickerInput by remember { mutableStateOf("") }
@@ -58,64 +55,53 @@ fun StockAnalysisScreen(
     val searchSource by viewModel.searchSource.collectAsState()
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .padding(16.dp)
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Menu de Seleção de Fonte de Dados com Cores
         ScrollableTabRow(
             selectedTabIndex = searchSource.ordinal,
             edgePadding = 0.dp,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            modifier = Modifier.fillMaxWidth(),
             containerColor = Color.Transparent,
             divider = {}
         ) {
             SearchSource.entries.forEach { source ->
                 val isSelected = searchSource == source
-                val color = when(source) {
-                    SearchSource.BRAPI -> Color(0xFF2196F3)
-                    SearchSource.FUNDAMENTUS -> Color(0xFF4CAF50)
-                    SearchSource.HYBRID -> Color(0xFFFF9800)
-                    SearchSource.MANUAL -> Color(0xFF673AB7)
-                    SearchSource.MOCK -> Color(0xFF9E9E9E)
-                }
                 Tab(
                     selected = isSelected,
                     onClick = { viewModel.setSource(source) },
                     text = { 
                         Text(
                             source.label, 
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         ) 
                     }
                 )
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
         OutlinedTextField(
             value = tickerInput,
             onValueChange = { tickerInput = it.uppercase() },
-            label = { Text("Ticker (Ex: BBAS3, HGLG11, IVVB11)") },
+            label = { Text("Ticker") },
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Characters,
-                imeAction = ImeAction.Search
-            ),
             singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Button(
             onClick = { viewModel.analyzeTicker(tickerInput) },
             modifier = Modifier.fillMaxWidth(),
             enabled = tickerInput.isNotBlank()
         ) {
-            Text(if (searchSource == SearchSource.MANUAL) "Buscar/Carregar Ativo" else "Analisar Ativo")
+            Text(if (searchSource == SearchSource.MANUAL) "Buscar/Carregar Dados" else "Analisar Ativo")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -127,23 +113,12 @@ fun StockAnalysisScreen(
                     ManualEditor(
                         data = state.data,
                         score = state.score,
-                        onSave = { updatedData -> viewModel.saveManualAsset(updatedData) },
+                        onSave = { viewModel.saveManualAsset(it) },
                         onAnalyze = { viewModel.saveManualAsset(it) }
                     )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    ScoreResult(state.data, state.score)
                 } else {
-                    if (state.isMockData) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                        ) {
-                            Text(
-                                text = "Aviso: Acesso à API Brapi limitado. Exibindo análise baseada em dados históricos/simulados.",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(8.dp),
-                                color = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        }
-                    }
                     ScoreResult(state.data, state.score)
                 }
             }
@@ -164,339 +139,220 @@ fun ManualEditor(
     onSave: (AssetData) -> Unit,
     onAnalyze: (AssetData) -> Unit
 ) {
-    var editedData by remember(data) { mutableStateOf(data) }
+    var nameState by remember(data) { mutableStateOf(data.name) }
+    var priceState by remember(data) { mutableStateOf(data.currentPrice.toString()) }
+    var sectorState by remember(data) { mutableStateOf(if (data.sector == "FII" || data.sector == "Ação") "" else data.sector) }
+    val indicatorStates = remember(data) { mutableStateMapOf<String, String>() }
+
+    fun getInd(key: String, def: String) = indicatorStates.getOrPut(key) { def }
+
+    fun parse(v: String) = v.replace(",", ".").toDoubleOrNull() ?: 0.0
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Modo Edição Manual", style = MaterialTheme.typography.titleLarge, color = Color(0xFF673AB7))
-        Text("Os dados abaixo foram carregados. Você pode alterá-los antes de salvar ou analisar.", style = MaterialTheme.typography.bodySmall)
+        Text("Edição Manual", style = MaterialTheme.typography.titleMedium, color = Color(0xFF673AB7))
         
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Se já tivermos calculado um score (maior que 0), mostramos o resultado no topo
         if (score > 0) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-            ) {
-                Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Resultado da Análise Manual", fontWeight = FontWeight.Bold)
-                    Text(
-                        text = "Nota: ${String.format("%.1f", score)} / 10",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = if (score >= 6.0) Color(0xFF2E7D32) else Color(0xFFC62828)
-                    )
-                }
-            }
-        }
-
-        // Campos comuns
-        EditRow("Nome", editedData.name) { newValue ->
-            editedData = when(val d = editedData) {
-                is AssetData.Stock -> d.copy(name = newValue)
-                is AssetData.Fii -> d.copy(name = newValue)
-                is AssetData.Etf -> d.copy(name = newValue)
-            }
-        }
-        EditRow("Preço Atual", editedData.currentPrice.toString(), isNumber = true) { newValue ->
-            val v = newValue.toDoubleOrNull() ?: 0.0
-            editedData = when(val d = editedData) {
-                is AssetData.Stock -> d.copy(currentPrice = v)
-                is AssetData.Fii -> d.copy(currentPrice = v)
-                is AssetData.Etf -> d.copy(currentPrice = v)
-            }
+            Text("Nota Atual: ${String.format("%.1f", score)}", fontWeight = FontWeight.Bold, color = if(score >= 6) Color(0xFF2E7D32) else Color.Red)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Indicadores específicos (${if (editedData is AssetData.Stock) "Ação" else if (editedData is AssetData.Fii) "FII" else "ETF"})", fontWeight = FontWeight.Bold)
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        when (val d = editedData) {
-            is AssetData.Stock -> {
-                EditRow("LPA", d.lpa.toString(), true) { editedData = d.copy(lpa = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("VPA", d.vpa.toString(), true) { editedData = d.copy(vpa = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("ROE (%)", (d.roe * 100).toString(), true) { editedData = d.copy(roe = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("P/VP", d.pvp.toString(), true) { editedData = d.copy(pvp = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("P/L", d.pl.toString(), true) { editedData = d.copy(pl = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("DY (%)", (d.dividendYield * 100).toString(), true) { editedData = d.copy(dividendYield = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("Margem Líq (%)", (d.netMargin * 100).toString(), true) { editedData = d.copy(netMargin = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("Dívida/Patrimônio", d.debtToEquity.toString(), true) { editedData = d.copy(debtToEquity = it.toDoubleOrNull() ?: 0.0) }
+        EditRow("Nome", nameState) { nameState = it }
+        EditRow("Preço", priceState, true) { priceState = it }
+        EditRow("Segmento", sectorState) { sectorState = it }
+
+        if (data is AssetData.Stock) {
+            EditRow("LPA", getInd("lpa", data.lpa.toString()), true) { indicatorStates["lpa"] = it }
+            EditRow("VPA", getInd("vpa", data.vpa.toString()), true) { indicatorStates["vpa"] = it }
+            EditRow("ROE (%)", getInd("roe", (data.roe * 100).toString()), true) { indicatorStates["roe"] = it }
+            EditRow("DY 5a (%)", getInd("dy5", (data.avgDividend5Years * 100).toString()), true) { indicatorStates["dy5"] = it }
+            EditRow("Dív/Patrim", getInd("de", data.debtToEquity.toString()), true) { indicatorStates["de"] = it }
+            EditRow("Margem Líq (%)", getInd("ml", (data.netMargin * 100).toString()), true) { indicatorStates["ml"] = it }
+            EditRow("P/L", getInd("pl", data.pl.toString()), true) { indicatorStates["pl"] = it }
+            EditRow("P/VP", getInd("pvp", data.pvp.toString()), true) { indicatorStates["pvp"] = it }
+            EditRow("Payout (%)", getInd("payout", (data.payout * 100).toString()), true) { indicatorStates["payout"] = it }
+            if (data.sector == "Bancário") {
+                EditRow("Índ. Basileia", getInd("basel", data.baselIndex.toString()), true) { indicatorStates["basel"] = it }
             }
-            is AssetData.Fii -> {
-                EditRow("P/VP", d.pvp.toString(), true) { editedData = d.copy(pvp = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("DY 12m (%)", (d.yield12m * 100).toString(), true) { editedData = d.copy(yield12m = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("Vacância (%)", (d.vacancy * 100).toString(), true) { editedData = d.copy(vacancy = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("WALT (anos)", d.weightedLeaseTerm.toString(), true) { editedData = d.copy(weightedLeaseTerm = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("Nº Imóveis", d.propertyCount.toString(), true) { editedData = d.copy(propertyCount = it.toIntOrNull() ?: 0) }
-            }
-            is AssetData.Etf -> {
-                EditRow("Taxa Adm (%)", (d.adminFee * 100).toString(), true) { editedData = d.copy(adminFee = (it.toDoubleOrNull() ?: 0.0) / 100.0) }
-                EditRow("Vol. Diário", d.avgDailyVolume.toString(), true) { editedData = d.copy(avgDailyVolume = it.toDoubleOrNull() ?: 0.0) }
-                EditRow("Holdings", d.numberOfHoldings.toString(), true) { editedData = d.copy(numberOfHoldings = it.toIntOrNull() ?: 0) }
-            }
+        } else if (data is AssetData.Fii) {
+            EditRow("Tipo Fundo", getInd("fType", data.fundType)) { indicatorStates["fType"] = it }
+            EditRow("Tipo Gestão", getInd("mType", data.managementType)) { indicatorStates["mType"] = it }
+            EditRow("DY 12m (%)", getInd("dy12", (data.yield12m * 100).toString()), true) { indicatorStates["dy12"] = it }
+            EditRow("DY 5a (%)", getInd("dy5", (data.avgYield5Years * 100).toString()), true) { indicatorStates["dy5"] = it }
+            EditRow("P/VP", getInd("pvp", data.pvp.toString()), true) { indicatorStates["pvp"] = it }
+            EditRow("Vacância (%)", getInd("vac", (data.vacancy * 100).toString()), true) { indicatorStates["vac"] = it }
+            EditRow("Patrim (M)", getInd("aum", (data.aum / 1_000_000.0).toString()), true) { indicatorStates["aum"] = it }
+            EditRow("Qtd Imóveis", getInd("prop", data.propertyCount.toString()), true) { indicatorStates["prop"] = it }
+            EditRow("Taxa Adm (%)", getInd("mFee", (data.managementFee * 100).toString()), true) { indicatorStates["mFee"] = it }
+            EditRow("WALT (anos)", getInd("walt", data.weightedLeaseTerm.toString()), true) { indicatorStates["walt"] = it }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = { onSave(editedData) },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Salvar")
-            }
+        Row(modifier = Modifier.fillMaxWidth()) {
             Button(
-                onClick = { onAnalyze(editedData) },
+                onClick = {
+                    val updated = when (data) {
+                        is AssetData.Stock -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            lpa = parse(getInd("lpa", "0")),
+                            vpa = parse(getInd("vpa", "0")),
+                            roe = parse(getInd("roe", "0")) / 100.0,
+                            avgDividend5Years = parse(getInd("dy5", "0")) / 100.0,
+                            debtToEquity = parse(getInd("de", "0")),
+                            netMargin = parse(getInd("ml", "0")) / 100.0,
+                            pl = parse(getInd("pl", "0")),
+                            pvp = parse(getInd("pvp", "0")),
+                            payout = parse(getInd("payout", "0")) / 100.0,
+                            baselIndex = parse(getInd("basel", "0"))
+                        )
+                        is AssetData.Fii -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            fundType = getInd("fType", ""),
+                            managementType = getInd("mType", ""),
+                            yield12m = parse(getInd("dy12", "0")) / 100.0,
+                            avgYield5Years = parse(getInd("dy5", "0")) / 100.0,
+                            pvp = parse(getInd("pvp", "0")),
+                            vacancy = parse(getInd("vac", "0")) / 100.0,
+                            aum = parse(getInd("aum", "0")) * 1_000_000.0,
+                            propertyCount = parse(getInd("prop", "0")).toInt(),
+                            managementFee = parse(getInd("mFee", "0")) / 100.0,
+                            weightedLeaseTerm = parse(getInd("walt", "0"))
+                        )
+                        is AssetData.Etf -> data // Manter como está por enquanto
+                    }
+                    onSave(updated)
+                },
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("Analisar")
-            }
-        }
-
-        if (score > 0) {
-            Spacer(modifier = Modifier.height(24.dp))
-            ProsConsSection(data.pros, data.cons)
+            ) { Text("Salvar") }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    val updated = when (data) {
+                        is AssetData.Stock -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            lpa = parse(getInd("lpa", "0")),
+                            vpa = parse(getInd("vpa", "0")),
+                            roe = parse(getInd("roe", "0")) / 100.0,
+                            avgDividend5Years = parse(getInd("dy5", "0")) / 100.0,
+                            debtToEquity = parse(getInd("de", "0")),
+                            netMargin = parse(getInd("ml", "0")) / 100.0,
+                            pl = parse(getInd("pl", "0")),
+                            pvp = parse(getInd("pvp", "0")),
+                            payout = parse(getInd("payout", "0")) / 100.0,
+                            baselIndex = parse(getInd("basel", "0"))
+                        )
+                        is AssetData.Fii -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            fundType = getInd("fType", ""),
+                            managementType = getInd("mType", ""),
+                            yield12m = parse(getInd("dy12", "0")) / 100.0,
+                            avgYield5Years = parse(getInd("dy5", "0")) / 100.0,
+                            pvp = parse(getInd("pvp", "0")),
+                            vacancy = parse(getInd("vac", "0")) / 100.0,
+                            aum = parse(getInd("aum", "0")) * 1_000_000.0,
+                            propertyCount = parse(getInd("prop", "0")).toInt(),
+                            managementFee = parse(getInd("mFee", "0")) / 100.0,
+                            weightedLeaseTerm = parse(getInd("walt", "0"))
+                        )
+                        is AssetData.Etf -> data
+                    }
+                    onAnalyze(updated)
+                },
+                modifier = Modifier.weight(1f)
+            ) { Text("Analisar") }
         }
     }
 }
 
 @Composable
-fun EditRow(label: String, value: String, isNumber: Boolean = false, onValueChange: (String) -> Unit) {
+fun EditRow(label: String, value: String, isNum: Boolean = false, onValueChange: (String) -> Unit) {
     Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        OutlinedTextField(
+        Text(label, modifier = Modifier.weight(1f), fontSize = 12.sp)
+        BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.weight(1.5f),
+            modifier = Modifier.weight(1.8f).height(32.dp),
+            textStyle = TextStyle(fontSize = 13.sp),
             singleLine = true,
-            textStyle = MaterialTheme.typography.bodySmall,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = if (isNumber) KeyboardType.Decimal else KeyboardType.Text
-            )
+            keyboardOptions = KeyboardOptions(keyboardType = if(isNum) KeyboardType.Decimal else KeyboardType.Text),
+            decorationBox = { innerTextField ->
+                Surface(
+                    shape = MaterialTheme.shapes.extraSmall,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Box(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        innerTextField()
+                    }
+                }
+            }
         )
     }
 }
 
 @Composable
 fun ScoreResult(data: AssetData, score: Double) {
-    val (verdict, color) = when {
-        score >= 8.5 -> "Excelente - Ativo com indicadores sólidos." to Color(0xFF2E7D32)
-        score >= 6.0 -> "Interessante - Bom ativo, mas exige atenção." to Color(0xFFEF6C00)
-        else -> "Risco Alto - Indicadores abaixo da média recomendada." to Color(0xFFC62828)
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "${data.ticker} - ${data.name}",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Nota Final: ${String.format("%.1f", score)} / 10",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LinearProgressIndicator(
-            progress = { (score / 10f).toFloat() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(12.dp),
-            color = color,
-            trackColor = color.copy(alpha = 0.2f),
-        )
-
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Text("${data.ticker} - ${data.name}", fontWeight = FontWeight.Bold)
+        Text("Nota: ${String.format("%.1f", score)} / 10", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(16.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f))
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = "Veredito:", fontWeight = FontWeight.Bold, color = color)
-                Text(text = verdict, style = MaterialTheme.typography.bodyLarge, color = color)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = "Detalhes da Análise",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.align(Alignment.Start)
-        )
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
         AssetDetails(data)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
+        Spacer(modifier = Modifier.height(16.dp))
         ProsConsSection(data.pros, data.cons)
     }
 }
 
 @Composable
-fun ProsConsSection(pros: List<String>, cons: List<String>) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Pontos de Atenção",
-            style = MaterialTheme.typography.titleLarge
-        )
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        Row(modifier = Modifier.fillMaxWidth()) {
-            // Pontos Positivos
-            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                Text(
-                    text = "Positivos",
-                    color = Color(0xFF2E7D32),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                pros.forEach { point ->
-                    Text(
-                        text = "• $point",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
-                }
-                if (pros.isEmpty()) Text("Nenhum destaque detectado", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-
-            // Pontos Negativos
-            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                Text(
-                    text = "Negativos",
-                    color = Color(0xFFC62828),
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                cons.forEach { point ->
-                    Text(
-                        text = "• $point",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
-                }
-                if (cons.isEmpty()) Text("Nenhum risco relevante detectado", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-        }
-    }
-}
-
-@Composable
 fun AssetDetails(data: AssetData) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        DetailsRow("Tipo de Ativo", when(data) {
-            is AssetData.Stock -> "Ação"
-            is AssetData.Fii -> "FII"
-            is AssetData.Etf -> "ETF"
-        })
-        DetailsRow("Setor / Índice", data.sector)
-        DetailsRow(
-            label = "Preço Atual",
-            value = "R$ ${String.format("%.2f", data.currentPrice)}",
-            isMocked = data.mockedFields.contains("Preço Atual")
-        )
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = "Indicadores Específicos", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-        when (data) {
-            is AssetData.Stock -> {
-                DetailsRow("P/VP", String.format("%.2f", data.pvp), data.mockedFields.contains("P/VP"))
-                DetailsRow("P/L", String.format("%.2f", data.pl), data.mockedFields.contains("P/L"))
-                DetailsRow("ROE", String.format("%.2f%%", data.roe * 100), data.mockedFields.contains("ROE"))
-                DetailsRow("Div. Yield (DY)", String.format("%.2f%%", data.dividendYield * 100), data.mockedFields.contains("Div. Yield (DY)"))
-                DetailsRow("Margem Líquida", String.format("%.2f%%", data.netMargin * 100), data.mockedFields.contains("Margem Líquida"))
-                DetailsRow("Dívida/Patrimônio", String.format("%.2f", data.debtToEquity), data.mockedFields.contains("Dívida/Patrimônio"))
-            }
-            is AssetData.Fii -> {
-                DetailsRow("P/VP", String.format("%.2f", data.pvp), data.mockedFields.contains("P/VP"))
-                DetailsRow("Div. Yield (DY)", String.format("%.2f%%", data.yield12m * 100), data.mockedFields.contains("Div. Yield (DY)"))
-                DetailsRow("Patrimônio (PL)", "R$ ${String.format("%.2f", data.aum / 1_000_000)}M", data.mockedFields.contains("Patrimônio (PL)"))
-                DetailsRow("Nº de Imóveis", "${data.propertyCount}")
-                DetailsRow("Vacância", String.format("%.2f%%", data.vacancy * 100), data.mockedFields.contains("Vacância"))
-                DetailsRow("WALT (Contratos)", String.format("%.2f anos", data.weightedLeaseTerm), data.mockedFields.contains("WALT (Contratos)"))
-            }
-            is AssetData.Etf -> {
-                DetailsRow("Taxa Adm", String.format("%.2f%%", data.adminFee * 100), data.mockedFields.contains("Taxa Adm"))
-                DetailsRow("Patrimônio (AUM)", "R$ ${String.format("%.2f", data.aum / 1_000_000)}M", data.mockedFields.contains("Patrimônio (AUM)"))
-                DetailsRow("Vol. Diário", "R$ ${String.format("%.2f", data.avgDailyVolume / 1_000_000)}M")
-                DetailsRow("Holdings", "${data.numberOfHoldings} ativos", data.mockedFields.contains("Holdings"))
-                DetailsRow("Tracking Error", String.format("%.2f%%", data.trackingError * 100))
-            }
+    Column {
+        DetailsRow("Preço", "R$ ${String.format("%.2f", data.currentPrice)}")
+        DetailsRow("Segmento", data.sector)
+        if (data is AssetData.Stock) {
+            DetailsRow("P/VP", String.format("%.2f", data.pvp))
+            DetailsRow("P/L", String.format("%.2f", data.pl))
+            DetailsRow("ROE", String.format("%.1f%%", data.roe * 100))
+        } else if (data is AssetData.Fii) {
+            DetailsRow("Tipo Fundo", data.fundType)
+            DetailsRow("Gestão", data.managementType)
+            DetailsRow("P/VP", String.format("%.2f", data.pvp))
+            DetailsRow("DY 12m", String.format("%.1f%%", data.yield12m * 100))
         }
     }
 }
 
 @Composable
-fun DetailsRow(label: String, value: String, isMocked: Boolean = false) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (isMocked) {
-                Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
-                    shape = MaterialTheme.shapes.extraSmall,
-                    modifier = Modifier.padding(end = 4.dp)
-                ) {
-                    Text(
-                        text = "Simulado",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            Text(text = value, fontWeight = FontWeight.Bold)
-        }
+fun DetailsRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = Color.Gray)
+        Text(value, fontWeight = FontWeight.Bold)
     }
 }
 
-@Preview(showBackground = true)
 @Composable
-fun FiiResultPreview() {
-    B3CheckTheme {
-        ScoreResult(
-            data = AssetData.Fii(
-                ticker = "HGLG11",
-                name = "CSHG Logística",
-                currentPrice = 160.0,
-                sector = "Logística",
-                pvp = 1.02,
-                vacancy = 0.03,
-                yield12m = 0.09,
-                ffoMargin = 0.85,
-                multiProperty = true,
-                multiTenant = true,
-                capRate = 0.08,
-                weightedLeaseTerm = 5.0,
-                managementFee = 0.01,
-                propertyCount = 10,
-                aum = 1_500_000_000.0
-            ),
-            score = 9.0
-        )
+fun ProsConsSection(pros: List<String>, cons: List<String>) {
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Prós", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+            pros.forEach { Text("• $it", fontSize = 11.sp) }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Contras", color = Color.Red, fontWeight = FontWeight.Bold)
+            cons.forEach { Text("• $it", fontSize = 11.sp) }
+        }
     }
 }

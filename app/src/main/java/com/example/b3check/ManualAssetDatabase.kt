@@ -4,9 +4,10 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import com.google.gson.Gson
 
-class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 1) {
+class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 2) { // Versão aumentada para 2
 
     private val gson = Gson()
 
@@ -21,40 +22,50 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Se a versão mudar, limpamos para evitar conflitos de campos nulos
         db.execSQL("DROP TABLE IF EXISTS assets")
         onCreate(db)
     }
 
     fun saveAsset(data: AssetData) {
-        val db = writableDatabase
-        val values = ContentValues().apply {
-            put("ticker", data.ticker)
-            put("type", when(data) {
-                is AssetData.Stock -> "STOCK"
-                is AssetData.Fii -> "FII"
-                is AssetData.Etf -> "ETF"
-            })
-            put("json_data", gson.toJson(data))
+        try {
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put("ticker", data.ticker)
+                put("type", when(data) {
+                    is AssetData.Stock -> "STOCK"
+                    is AssetData.Fii -> "FII"
+                    is AssetData.Etf -> "ETF"
+                })
+                put("json_data", gson.toJson(data))
+            }
+            db.insertWithOnConflict("assets", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        } catch (e: Exception) {
+            Log.e("ManualDB", "Erro ao salvar: ${e.message}")
         }
-        db.insertWithOnConflict("assets", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun getAsset(ticker: String): AssetData? {
-        val db = readableDatabase
-        val cursor = db.query("assets", arrayOf("type", "json_data"), "ticker = ?", arrayOf(ticker), null, null, null)
-        
-        return if (cursor.moveToFirst()) {
-            val type = cursor.getString(0)
-            val json = cursor.getString(1)
-            cursor.close()
-            when (type) {
-                "STOCK" -> gson.fromJson(json, AssetData.Stock::class.java)
-                "FII" -> gson.fromJson(json, AssetData.Fii::class.java)
-                "ETF" -> gson.fromJson(json, AssetData.Etf::class.java)
-                else -> null
+        return try {
+            val db = readableDatabase
+            val cursor = db.query("assets", arrayOf("type", "json_data"), "ticker = ?", arrayOf(ticker), null, null, null)
+            
+            if (cursor.moveToFirst()) {
+                val type = cursor.getString(0)
+                val json = cursor.getString(1)
+                cursor.close()
+                when (type) {
+                    "STOCK" -> gson.fromJson(json, AssetData.Stock::class.java)
+                    "FII" -> gson.fromJson(json, AssetData.Fii::class.java)
+                    "ETF" -> gson.fromJson(json, AssetData.Etf::class.java)
+                    else -> null
+                }
+            } else {
+                cursor.close()
+                null
             }
-        } else {
-            cursor.close()
+        } catch (e: Exception) {
+            Log.e("ManualDB", "Erro ao ler: ${e.message}")
             null
         }
     }
