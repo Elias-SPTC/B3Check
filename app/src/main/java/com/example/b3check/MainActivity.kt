@@ -419,37 +419,37 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             }
         }
 
-        EditRow("Nome", nameState, source = data.fieldSources["name"]) { nameState = it }
-        EditRow("Preço", priceState, true, source = data.fieldSources["currentPrice"]) { priceState = it }
-        EditRow("Segmento", sectorState, source = data.fieldSources["sector"]) { sectorState = it }
+        EditRow("Nome", nameState, source = data.fieldSources?.get("name")) { nameState = it }
+        EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
+        EditRow("Segmento", sectorState, source = data.fieldSources?.get("sector")) { sectorState = it }
 
         if (data is AssetData.Stock) {
-            EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources["lpa"]) { indicatorStates["lpa"] = it }
-            EditRow("VPA", indicatorStates["vpa"] ?: "", true, data.fieldSources["vpa"]) { indicatorStates["vpa"] = it }
-            EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, data.fieldSources["roe"]) { indicatorStates["roe"] = it }
-            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources["dy"]) { indicatorStates["dy"] = it }
-            EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources["dy5"]) { indicatorStates["dy5"] = it }
-            EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources["payout"]) { indicatorStates["payout"] = it }
+            EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
+            EditRow("VPA", indicatorStates["vpa"] ?: "", true, data.fieldSources?.get("vpa")) { indicatorStates["vpa"] = it }
+            EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, data.fieldSources?.get("roe")) { indicatorStates["roe"] = it }
+            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
+            EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
+            EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
             Spacer(modifier = Modifier.height(8.dp))
-            EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources["graham"]) { indicatorStates["graham"] = it }
-            EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources["bazin"]) { indicatorStates["bazin"] = it }
+            EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
+            EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
         } else if (data is AssetData.Fii) {
-            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources["pvp"]) { indicatorStates["pvp"] = it }
-            EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, data.fieldSources["vac"]) { indicatorStates["vac"] = it }
-            EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources["y12"]) { indicatorStates["y12"] = it }
-            EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources["y5"]) { indicatorStates["y5"] = it }
-            EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources["prop"]) { indicatorStates["prop"] = it }
-            EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources["aum"]) { indicatorStates["aum"] = it }
-            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources["mFee"]) { indicatorStates["mFee"] = it }
-            EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources["walt"]) { indicatorStates["walt"] = it }
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
+            EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, data.fieldSources?.get("vac")) { indicatorStates["vac"] = it }
+            EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources?.get("y12")) { indicatorStates["y12"] = it }
+            EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources?.get("y5")) { indicatorStates["y5"] = it }
+            EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
+            EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
+            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
+            EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
         } else if (data is AssetData.Etf) {
-            EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, data.fieldSources["aFee"]) { indicatorStates["aFee"] = it }
-            EditRow("Tracking Error", indicatorStates["te"] ?: "", true, data.fieldSources["te"]) { indicatorStates["te"] = it }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, data.fieldSources["vol"]) { indicatorStates["vol"] = it }
-            EditRow("Holdings", indicatorStates["hold"] ?: "", true, data.fieldSources["hold"]) { indicatorStates["hold"] = it }
+            EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, data.fieldSources?.get("aFee")) { indicatorStates["aFee"] = it }
+            EditRow("Tracking Error", indicatorStates["te"] ?: "", true, data.fieldSources?.get("te")) { indicatorStates["te"] = it }
+            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, data.fieldSources?.get("vol")) { indicatorStates["vol"] = it }
+            EditRow("Holdings", indicatorStates["hold"] ?: "", true, data.fieldSources?.get("hold")) { indicatorStates["hold"] = it }
         } else if (data is AssetData.Bdr) {
-            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources["dy"]) { indicatorStates["dy"] = it }
-            EditRow("Paridade", indicatorStates["par"] ?: "", source = data.fieldSources["par"]) { indicatorStates["par"] = it }
+            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
+            EditRow("Paridade", indicatorStates["par"] ?: "", source = data.fieldSources?.get("par")) { indicatorStates["par"] = it }
         }
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
@@ -492,20 +492,21 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(label, fontSize = 12.sp)
-            source?.let {
-                val icon = when(it) {
+            val s = source // Evita problemas de smart cast
+            if (s != null) {
+                val icon = when(s) {
                     FieldSource.INTERNET -> Icons.Default.Language
                     FieldSource.SIMULATION -> Icons.Default.Science
                     FieldSource.USER -> Icons.Default.Edit
                 }
-                val color = when(it) {
+                val color = when(s) {
                     FieldSource.INTERNET -> Color(0xFF1976D2)
                     FieldSource.SIMULATION -> Color(0xFF9C27B0)
                     FieldSource.USER -> Color(0xFF4CAF50)
                 }
                 Icon(
                     imageVector = icon,
-                    contentDescription = it.name,
+                    contentDescription = s.name,
                     modifier = Modifier.padding(start = 4.dp).size(12.dp),
                     tint = color.copy(alpha = 0.6f)
                 )

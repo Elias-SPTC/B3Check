@@ -11,7 +11,7 @@ sealed class AssetData {
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet() // Para compatibilidade se necessário
-    var fieldSources: Map<String, FieldSource> = emptyMap()
+    var fieldSources: Map<String, FieldSource>? = emptyMap()
 
     data class Stock(
         override val ticker: String,

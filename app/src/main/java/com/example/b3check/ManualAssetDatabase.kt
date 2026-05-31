@@ -95,7 +95,10 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
                     else -> null
                 }
-                asset?.let { list.add(it) }
+                asset?.let { 
+                    if (it.fieldSources == null) it.fieldSources = emptyMap()
+                    list.add(it) 
+                }
             }
             cursor.close()
         } catch (e: Exception) {

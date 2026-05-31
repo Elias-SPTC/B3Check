@@ -60,9 +60,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                         data = if (data == null) internetData else {
                             // Mescla dados da internet nos campos vazios do objeto do banco
                             if (data is AssetData.Stock && internetData is AssetData.Stock) {
-                                val mergedSources = data.fieldSources.toMutableMap()
-                                internetData.fieldSources.forEach { (k, v) ->
-                                    if (data.fieldSources[k] == null) mergedSources[k] = v
+                                val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
+                                internetData.fieldSources?.forEach { (k, v) ->
+                                    if (data.fieldSources?.get(k) == null) mergedSources[k] = v
                                 }
                                 data.copy(
                                     dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
@@ -133,7 +133,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 is AssetData.Etf -> listOf("name", "currentPrice", "aFee", "te", "vol", "hold")
                 is AssetData.Bdr -> listOf("name", "currentPrice", "dy", "par")
             }
-            val newSources = data.fieldSources.toMutableMap()
+            val newSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
             fieldKeys.forEach { newSources[it] = FieldSource.USER }
             data.fieldSources = newSources
 
