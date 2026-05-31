@@ -325,7 +325,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         var pendingType by remember { mutableStateOf("") }
 
         val sectors = listOf(
-            "Bancário", "Energia Elétrica", "Saneamento", "Seguros", 
+            "Bancário", "Financeiro", "Energia Elétrica", "Saneamento", "Seguros",
             "Petróleo e Gás", "Mineração e Siderurgia", "Varejo", 
             "Tecnologia", "Saúde", "Construção", "Agronegócio", 
             "Transportes", "Holdings", "Outros"
