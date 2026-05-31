@@ -192,7 +192,8 @@ fun ManualEditor(
             EditRow("LPA", getInd("lpa", data.lpa.toString()), true) { indicatorStates["lpa"] = it }
             EditRow("VPA", getInd("vpa", data.vpa.toString()), true) { indicatorStates["vpa"] = it }
             EditRow("ROE (%)", getInd("roe", (data.roe * 100).toString()), true) { indicatorStates["roe"] = it }
-            EditRow("DY 5a (%)", getInd("dy5", (data.avgDividend5Years * 100).toString()), true) { indicatorStates["dy5"] = it }
+            EditRow("DY Atual (%)", getInd("dy", (data.dividendYield * 100).toString()), true) { indicatorStates["dy"] = it }
+            EditRow("DY 5a (%)", getInd("dy5", (data.dividendYield5Years * 100).toString()), true) { indicatorStates["dy5"] = it }
             EditRow("Dív/Patrim", getInd("de", data.debtToEquity.toString()), true) { indicatorStates["de"] = it }
             EditRow("Margem Líq (%)", getInd("ml", (data.netMargin * 100).toString()), true) { indicatorStates["ml"] = it }
             EditRow("P/L", getInd("pl", data.pl.toString()), true) { indicatorStates["pl"] = it }
@@ -235,7 +236,9 @@ fun ManualEditor(
                             lpa = parse(getInd("lpa", "0")),
                             vpa = parse(getInd("vpa", "0")),
                             roe = parse(getInd("roe", "0")) / 100.0,
-                            avgDividend5Years = parse(getInd("dy5", "0")) / 100.0,
+                            dividendYield = parse(getInd("dy", "0")) / 100.0,
+                            dividendYield5Years = parse(getInd("dy5", "0")) / 100.0,
+                            avgDividend5Years = (parse(getInd("dy5", "0")) / 100.0) * parse(priceState),
                             debtToEquity = parse(getInd("de", "0")),
                             netMargin = parse(getInd("ml", "0")) / 100.0,
                             pl = parse(getInd("pl", "0")),
@@ -290,7 +293,9 @@ fun ManualEditor(
                             lpa = parse(getInd("lpa", "0")),
                             vpa = parse(getInd("vpa", "0")),
                             roe = parse(getInd("roe", "0")) / 100.0,
-                            avgDividend5Years = parse(getInd("dy5", "0")) / 100.0,
+                            dividendYield = parse(getInd("dy", "0")) / 100.0,
+                            dividendYield5Years = parse(getInd("dy5", "0")) / 100.0,
+                            avgDividend5Years = (parse(getInd("dy5", "0")) / 100.0) * parse(priceState),
                             debtToEquity = parse(getInd("de", "0")),
                             netMargin = parse(getInd("ml", "0")) / 100.0,
                             pl = parse(getInd("pl", "0")),
@@ -334,6 +339,25 @@ fun ManualEditor(
                 },
                 modifier = Modifier.weight(1f)
             ) { Text("Analisar") }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = {
+                val cleaned = when (data) {
+                    is AssetData.Stock -> data.copy(
+                        dividendYield5Years = if (data.avgDividend5Years > 0 && data.avgDividend5Years < 1.0) data.avgDividend5Years else data.dividendYield5Years,
+                        avgDividend5Years = if (data.avgDividend5Years > 0 && data.avgDividend5Years < 1.0) data.avgDividend5Years * data.currentPrice else data.avgDividend5Years
+                    )
+                    else -> data
+                }
+                onSave(cleaned)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF673AB7))
+        ) {
+            Text("Limpar Erros de Cálculo (Legado)")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -402,7 +426,9 @@ fun AssetDetails(data: AssetData) {
                 sqrt(22.5 * data.lpa * data.vpa)
             } else 0.0
             
-            val bazinPrice = if (data.avgDividend5Years > 0) {
+            val bazinPrice = if (data.dividendYield5Years > 0) {
+                (data.dividendYield5Years * data.currentPrice) / 0.06
+            } else if (data.avgDividend5Years > 0) {
                 data.avgDividend5Years / 0.06
             } else 0.0
 

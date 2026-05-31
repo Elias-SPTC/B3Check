@@ -29,7 +29,7 @@ class MockAssetRepository : AssetRepository {
 
     private fun getMockStock(t: String) = AssetData.Stock(
         ticker = t, name = "Empresa Simulada S.A.", currentPrice = 35.50, sector = "Consumo",
-        lpa = 2.8, vpa = 15.0, avgDividend3Years = 1.8,
+        lpa = 2.8, vpa = 15.0, avgDividend5Years = 1.8, dividendYield5Years = 0.05,
         paidDividendsLast5Years = true, netDebt = 500.0, ebitda = 1200.0,
         netMargin = 0.14, cagrProfit5Years = 0.12, cagrRevenue5Years = 0.09,
         payout = 0.6, roe = 0.24, pvp = 1.15, pl = 12.0, dividendYield = 0.05, debtToEquity = 0.4

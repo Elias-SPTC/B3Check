@@ -57,6 +57,7 @@ class Investidor10ScraperRepository : AssetRepository {
             val netMargin = parsePercentage(findIndicatorValue(doc, "MARGEM LÍQUIDA"))
             val debtToEquity = parseDouble(findIndicatorValue(doc, "DÍVIDA LÍQUIDA / PATRIMÔNIO"))
             val netWorth = parseLargeNumber(findIndicatorValue(doc, "PATRIMÔNIO LÍQUIDO", "PL"))
+            val dy5 = parsePercentage(findIndicatorValue(doc, "DY MÉDIO (5 ANOS)", "DY MÉDIO 5 ANOS"))
 
             if (isFii) {
                 val vacancy = parsePercentage(findIndicatorValue(doc, "VACÂNCIA"))
@@ -83,7 +84,9 @@ class Investidor10ScraperRepository : AssetRepository {
                     ticker = ticker, name = pageTitle, currentPrice = price, sector = "Ações",
                     lpa = if (pl > 0) price / pl else 1.0, 
                     vpa = if (pvp > 0) price / pvp else 1.0,
-                    avgDividend3Years = dy * price, paidDividendsLast5Years = true,
+                    avgDividend5Years = if (dy5 > 0) dy5 * price else dy * price, 
+                    dividendYield5Years = if (dy5 > 0) dy5 else dy,
+                    paidDividendsLast5Years = true,
                     netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,
                     cagrProfit5Years = 0.08, cagrRevenue5Years = 0.08,
                     payout = 0.5, roe = roe, pvp = pvp, pl = pl, dividendYield = dy, 

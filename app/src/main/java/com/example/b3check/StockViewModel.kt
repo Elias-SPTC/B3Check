@@ -145,10 +145,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val c = mutableListOf<String>()
 
         // DY Médio 5 anos
-        if (data.avgDividend5Years >= 0.06) {
+        if (data.dividendYield5Years >= 0.06) {
             score += 1.0
             p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
-        } else if (data.avgDividend5Years > 0) {
+        } else if (data.dividendYield5Years > 0) {
             c.add("DY Histórico abaixo de 6%")
         }
 

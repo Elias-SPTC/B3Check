@@ -47,6 +47,9 @@ class FundamentusScraperRepository : AssetRepository {
             val tipo = findValueByLabel(doc, "Tipo") ?: ""
             val isFii = t.endsWith("11") && (tipo.contains("FII", ignoreCase = true) || html.contains("Fundo Imobiliário", ignoreCase = true) || html.contains("Vacância", ignoreCase = true))
 
+            // No Fundamentus não há DY médio de 5 anos fácil, usamos o atual como fallback
+            val dy5 = dy
+
             if (isFii) {
                 val vacancy = parsePercentage(findValueByLabel(doc, "Vacância"))
                 AssetData.Fii(
@@ -65,7 +68,9 @@ class FundamentusScraperRepository : AssetRepository {
                     ticker = t, name = name, currentPrice = price, sector = "Ação",
                     lpa = if (pl > 0) price / pl else 1.0,
                     vpa = if (pvp > 0) price / pvp else 1.0,
-                    avgDividend3Years = dy * price, paidDividendsLast5Years = true,
+                    avgDividend5Years = dy * price, 
+                    dividendYield5Years = dy,
+                    paidDividendsLast5Years = true,
                     netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,
                     cagrProfit5Years = 0.08, cagrRevenue5Years = 0.08,
                     payout = 0.5, roe = roe, pvp = pvp, pl = pl, dividendYield = dy,
