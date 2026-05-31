@@ -108,6 +108,9 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
     val assets by viewModel.allAssets.collectAsState()
     val context = LocalContext.current
 
+    val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    val defaultBackupName = "$currentDate-B3Check.json"
+
     val createDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -138,7 +141,7 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
             
             Row {
                 IconButton(onClick = {
-                    createDocumentLauncher.launch("b3check_backup.json")
+                    createDocumentLauncher.launch(defaultBackupName)
                 }) { Icon(Icons.Default.Share, contentDescription = "Salvar em Arquivo") }
                 
                 IconButton(onClick = {
@@ -315,11 +318,26 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     var inPortfolioState by remember(data) { mutableStateOf(data.isInPortfolio) }
     val indicatorStates = remember(data) { mutableStateMapOf<String, String>() }
     
-    var showTypeMenu by remember { mutableStateOf(false) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var pendingType by remember { mutableStateOf("") }
+        var showTypeMenu by remember { mutableStateOf(false) }
+        var showSectorMenu by remember { mutableStateOf(false) }
+        var showFiiTypeMenu by remember { mutableStateOf(false) }
+        var showConfirmDialog by remember { mutableStateOf(false) }
+        var pendingType by remember { mutableStateOf("") }
 
-    val assetTypes = listOf("Ação", "FII", "ETF", "BDR")
+        val sectors = listOf(
+            "Bancário", "Energia Elétrica", "Saneamento", "Seguros", 
+            "Petróleo e Gás", "Mineração e Siderurgia", "Varejo", 
+            "Tecnologia", "Saúde", "Construção", "Agronegócio", 
+            "Transportes", "Holdings", "Outros"
+        )
+
+        val fiiTypes = listOf(
+            "Tijolo (Geral)", "Lajes Corporativas", "Logística", 
+            "Shoppings", "Papel (Recebíveis)", "Híbrido", 
+            "Fundo de Fundos (FoF)", "Fiagro", "Outros"
+        )
+
+        val assetTypes = listOf("Ação", "FII", "ETF", "BDR")
     val currentTypeLabel = when (data) {
         is AssetData.Stock -> "Ação"
         is AssetData.Fii -> "FII"
@@ -422,7 +440,31 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
 
         EditRow("Nome", nameState, source = data.fieldSources?.get("name")) { nameState = it }
         EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
-        EditRow("Segmento", sectorState, source = data.fieldSources?.get("sector")) { sectorState = it }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Segmento", modifier = Modifier.weight(1f), fontSize = 12.sp)
+            Box(modifier = Modifier.weight(1.8f)) {
+                OutlinedButton(
+                    onClick = { showSectorMenu = true },
+                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    shape = MaterialTheme.shapes.extraSmall
+                ) {
+                    Text(if (sectorState.isBlank()) "Selecionar" else sectorState, fontSize = 13.sp)
+                }
+                DropdownMenu(expanded = showSectorMenu, onDismissRequest = { showSectorMenu = false }) {
+                    sectors.forEach { sector ->
+                        DropdownMenuItem(
+                            text = { Text(sector) },
+                            onClick = {
+                                sectorState = sector
+                                showSectorMenu = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
 
         if (data is AssetData.Stock) {
             EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
@@ -435,7 +477,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
-            if (data.sector.contains("Banc", ignoreCase = true)) {
+            
+            if (sectorState == "Bancário") {
                 EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -450,7 +493,33 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
-            EditRow("Tipo Fundo", indicatorStates["fType"] ?: "", false, data.fieldSources?.get("fType")) { indicatorStates["fType"] = it }
+            
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Tipo Fundo", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Box(modifier = Modifier.weight(1.8f)) {
+                    OutlinedButton(
+                        onClick = { showFiiTypeMenu = true },
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        val fType = indicatorStates["fType"] ?: ""
+                        Text(if (fType.isBlank()) "Selecionar" else fType, fontSize = 13.sp)
+                    }
+                    DropdownMenu(expanded = showFiiTypeMenu, onDismissRequest = { showFiiTypeMenu = false }) {
+                        fiiTypes.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type) },
+                                onClick = {
+                                    indicatorStates["fType"] = type
+                                    showFiiTypeMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             EditRow("Gestão", indicatorStates["mType"] ?: "", false, data.fieldSources?.get("mType")) { indicatorStates["mType"] = it }
         } else if (data is AssetData.Etf) {
             EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, data.fieldSources?.get("aFee")) { indicatorStates["aFee"] = it }
