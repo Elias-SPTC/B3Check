@@ -37,7 +37,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         _searchSource.value = source
     }
 
-    fun analyzeTicker(ticker: String) {
+    fun analyzeTicker(ticker: String, manualType: String? = null) {
         val t = ticker.trim().uppercase()
         if (t.isBlank()) return
 
@@ -52,8 +52,18 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 if (_searchSource.value == SearchSource.MANUAL) {
                     data = try { db.getAsset(t) } catch(e: Exception) { null }
                     if (data == null) {
-                        Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, buscando via Híbrido")
-                        data = fetchFromRepo(hybridRepo, t)
+                        if (manualType != null) {
+                            Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, criando como $manualType")
+                            data = when(manualType) {
+                                "FII" -> AssetData.Fii(t, t, 0.0, "FII")
+                                "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
+                                "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
+                                else -> AssetData.Stock(t, t, 0.0, "Ação")
+                            }
+                        } else {
+                            Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, buscando via Híbrido")
+                            data = fetchFromRepo(hybridRepo, t)
+                        }
                     }
                 } else {
                     val selectedRepo = when (_searchSource.value) {
@@ -61,7 +71,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                         SearchSource.FUNDAMENTUS -> scraperRepo
                         SearchSource.HYBRID -> hybridRepo
                         SearchSource.MOCK -> mockRepo
-                        SearchSource.MANUAL -> hybridRepo // Should not happen due to if above
+                        SearchSource.MANUAL -> hybridRepo // Should not happen
                     }
                     data = fetchFromRepo(selectedRepo, t)
                 }
@@ -113,6 +123,13 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteAsset(ticker: String) {
+        viewModelScope.launch {
+            db.deleteAsset(ticker)
+            _uiState.value = StockUiState.Idle
+        }
+    }
+
     private fun calculateScoreForAsset(data: AssetData): Double {
         return when (data) {
             is AssetData.Stock -> calculateStockScore(data)
@@ -131,64 +148,84 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         if (data.avgDividend5Years >= 0.06) {
             score += 1.0
             p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
+        } else if (data.avgDividend5Years > 0) {
+            c.add("DY Histórico abaixo de 6%")
         }
 
         val grahamPrice = sqrt(22.5 * data.lpa * data.vpa)
-        if (data.currentPrice <= grahamPrice) {
+        if (data.currentPrice <= grahamPrice && grahamPrice > 0) {
             score += 1.0
             p.add("Preço abaixo do valor de Graham")
-        } else {
+        } else if (grahamPrice > 0) {
             c.add("Valuation esticado (acima de Graham)")
         }
 
-        if (data.pvp <= 1.5) {
+        if (data.pvp in 0.1..1.5) {
             score += 1.0
             p.add("P/VP atrativo (<= 1.5)")
-        } else if (data.pvp > 2.5) {
-            c.add("P/VP elevado (Acima de 2.5)")
+        } else if (data.pvp > 2.0) {
+            c.add("P/VP elevado (Acima de 2.0)")
+        } else if (data.pvp <= 0) {
+            c.add("P/VP não disponível ou negativo")
         }
 
         if (data.pl in 1.0..15.0) {
             score += 1.0
             p.add("P/L equilibrado (Preço/Lucro entre 1 e 15)")
-        } else if (data.pl > 25.0) {
-            c.add("P/L alto (Expectativa de crescimento)")
+        } else if (data.pl > 20.0 || data.pl < 0) {
+            c.add("P/L fora da zona ideal (Alto ou Negativo)")
         }
 
         if (data.roe >= 0.15) {
             score += 1.0
             p.add("Rentabilidade sólida (ROE > 15%)")
+        } else {
+            c.add("ROE abaixo de 15%")
         }
 
         if (data.dividendYield >= 0.06) {
             score += 1.0
             p.add("Dividend Yield atrativo (> 6% a.a.)")
+        } else if (data.dividendYield < 0.04) {
+            c.add("DY atual baixo (Abaixo de 4%)")
         }
 
         if (data.netMargin >= 0.12) {
             score += 1.5
-            p.add("Boa Margem Líquida")
+            p.add("Boa Margem Líquida (> 12%)")
+        } else {
+            c.add("Margem Líquida abaixo de 12%")
         }
 
         if (data.sector == "Bancário") {
             if (data.baselIndex >= 0.14) {
-                score += 2.0
+                score += 2.5
                 p.add("Basileia robusto (Segurança)")
+            } else {
+                c.add("Índice de Basileia abaixo de 14%")
             }
         } else {
             if (data.debtToEquity <= 0.8) {
-                score += 2.0
-                p.add("Baixa Dívida/Patrimônio")
-            } else if (data.debtToEquity > 1.5) {
+                score += 2.5
+                p.add("Baixa Dívida/Patrimônio (Saudável)")
+            } else if (data.debtToEquity > 1.2) {
                 score -= 1.0
-                c.add("Alavancagem financeira elevada")
+                c.add("Alavancagem financeira elevada (> 1.2)")
             }
         }
 
-        if (data.paidDividendsLast5Years) p.add("Histórico de dividendos consistente")
-        if (data.payout in 0.25..0.75) {
+        if (data.paidDividendsLast5Years) {
+            score += 0.5
+            p.add("Histórico de dividendos consistente")
+        } else {
+            c.add("Não pagou dividendos consistentemente")
+        }
+
+        if (data.payout in 0.3..0.8) {
             score += 0.5
             p.add("Payout saudável e sustentável")
+        } else if (data.payout > 0.9) {
+            c.add("Payout muito elevado (Risco de corte)")
         }
 
         data.pros = p.take(10)
@@ -216,25 +253,30 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         if (data.pvp in 0.92..1.03) {
             score += 3.0
             p.add("P/VP em zona de equilíbrio (Próximo a 1.0)")
-        } else if (data.pvp < 0.92) {
+        } else if (data.pvp < 0.92 && data.pvp > 0) {
             score += 1.5
             p.add("Ativo com desconto patrimonial")
-        } else {
-            c.add("Ágio elevado (P/VP > 1.05)")
+        } else if (data.pvp > 1.1) {
+            c.add("Ágio elevado (P/VP > 1.10)")
+        } else if (data.pvp <= 0) {
+            c.add("P/VP não disponível ou negativo")
         }
 
         if (data.vacancy <= 0.05) {
             score += 1.5
             p.add("Ocupação excelente (Vacância < 5%)")
         } else if (data.vacancy > 0.15) {
-            c.add("Risco de vacância elevado")
+            score -= 1.0
+            c.add("Risco de vacância elevado (> 15%)")
+        } else {
+            c.add("Vacância moderada")
         }
 
         if (data.multiProperty && data.multiTenant) {
             score += 1.5
             p.add("Alta diversificação (Multi-imóvel/inquilino)")
         } else {
-            c.add("Risco de concentração (Mono-imóvel/inquilino)")
+            c.add("Risco de concentração (Mono-imóvel ou Mono-inquilino)")
         }
 
         if (data.weightedLeaseTerm >= 4.0) {
@@ -244,7 +286,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
         if (data.yield12m >= 0.09) {
             score += 2.0
-            p.add("Dividend Yield atrativo")
+            p.add("Dividend Yield atrativo (> 9%)")
+        } else if (data.yield12m < 0.06) {
+            c.add("Dividend Yield baixo (< 6%)")
         }
         
         if (data.managementFee <= 0.01) {

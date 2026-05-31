@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import com.google.gson.Gson
 
-class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 2) { // Versão aumentada para 2
+class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 2) {
 
     private val gson = Gson()
 
@@ -22,7 +22,6 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Se a versão mudar, limpamos para evitar conflitos de campos nulos
         db.execSQL("DROP TABLE IF EXISTS assets")
         onCreate(db)
     }
@@ -69,6 +68,15 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         } catch (e: Exception) {
             Log.e("ManualDB", "Erro ao ler: ${e.message}")
             null
+        }
+    }
+
+    fun deleteAsset(ticker: String) {
+        try {
+            val db = writableDatabase
+            db.delete("assets", "ticker = ?", arrayOf(ticker))
+        } catch (e: Exception) {
+            Log.e("ManualDB", "Erro ao deletar: ${e.message}")
         }
     }
 }

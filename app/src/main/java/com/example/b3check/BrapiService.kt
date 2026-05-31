@@ -58,7 +58,8 @@ data class DefaultKeyStatisticsDto(
 )
 
 fun AssetDto.toAssetData(): AssetData {
-    val isFii = type == "fund" || symbol.endsWith("11") && type != "stock"
+    val isStock = type == "stock"
+    val isFii = type == "fund" || (symbol.endsWith("11") && !isStock)
     val isEtf = type == "etf" || (symbol == "IVVB11" || symbol == "BOVA11" || symbol == "AUVP11")
 
     // O ROE e DY podem vir de módulos diferentes

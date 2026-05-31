@@ -44,7 +44,8 @@ class FundamentusScraperRepository : AssetRepository {
             val netWorth = parseLargeNumber(findValueByLabel(doc, "Patrim. Líq"))
 
             // Detecta se é FII ou Ação pelo conteúdo (Fundamentus tem páginas diferentes)
-            val isFii = html.contains("FII", ignoreCase = true) && t.endsWith("11")
+            val tipo = findValueByLabel(doc, "Tipo") ?: ""
+            val isFii = t.endsWith("11") && (tipo.contains("FII", ignoreCase = true) || html.contains("Fundo Imobiliário", ignoreCase = true) || html.contains("Vacância", ignoreCase = true))
 
             if (isFii) {
                 val vacancy = parsePercentage(findValueByLabel(doc, "Vacância"))

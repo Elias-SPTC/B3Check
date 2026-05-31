@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.b3check.ui.theme.B3CheckTheme
+import kotlin.math.sqrt
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -116,14 +117,8 @@ fun StockAnalysisScreen(
 
         Button(
             onClick = { 
-                if (searchSource == SearchSource.MANUAL && uiState !is StockUiState.Success) {
-                    val emptyData = when(selectedAssetType) {
-                        "FII" -> AssetData.Fii(tickerInput, tickerInput, 0.0, "FII")
-                        "ETF" -> AssetData.Etf(tickerInput, tickerInput, 0.0, "ETF")
-                        "BDR" -> AssetData.Bdr(tickerInput, tickerInput, 0.0, "BDR")
-                        else -> AssetData.Stock(tickerInput, tickerInput, 0.0, "Ação")
-                    }
-                    viewModel.saveManualAsset(emptyData)
+                if (searchSource == SearchSource.MANUAL) {
+                    viewModel.analyzeTicker(tickerInput, selectedAssetType)
                 } else {
                     viewModel.analyzeTicker(tickerInput)
                 }
@@ -144,7 +139,8 @@ fun StockAnalysisScreen(
                         data = state.data,
                         score = state.score,
                         onSave = { viewModel.saveManualAsset(it) },
-                        onAnalyze = { viewModel.saveManualAsset(it) }
+                        onAnalyze = { viewModel.saveManualAsset(it) },
+                        onDelete = { viewModel.deleteAsset(it.ticker) }
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     ScoreResult(state.data, state.score)
@@ -167,7 +163,8 @@ fun ManualEditor(
     data: AssetData,
     score: Double,
     onSave: (AssetData) -> Unit,
-    onAnalyze: (AssetData) -> Unit
+    onAnalyze: (AssetData) -> Unit,
+    onDelete: (AssetData) -> Unit
 ) {
     var nameState by remember(data) { mutableStateOf(data.name) }
     var priceState by remember(data) { mutableStateOf(data.currentPrice.toString()) }
@@ -338,6 +335,16 @@ fun ManualEditor(
                 modifier = Modifier.weight(1f)
             ) { Text("Analisar") }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = { onDelete(data) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+        ) {
+            Text("Deletar do Banco Manual")
+        }
     }
 }
 
@@ -388,9 +395,27 @@ fun ScoreResult(data: AssetData, score: Double) {
 @Composable
 fun AssetDetails(data: AssetData) {
     Column {
-        DetailsRow("Preço", "R$ ${String.format("%.2f", data.currentPrice)}")
-        DetailsRow("Segmento", data.sector)
+        DetailsRow("Preço Atual", "R$ ${String.format("%.2f", data.currentPrice)}")
+        
         if (data is AssetData.Stock) {
+            val grahamPrice = if (data.lpa > 0 && data.vpa > 0) {
+                sqrt(22.5 * data.lpa * data.vpa)
+            } else 0.0
+            
+            val bazinPrice = if (data.avgDividend5Years > 0) {
+                data.avgDividend5Years / 0.06
+            } else 0.0
+
+            if (grahamPrice > 0) {
+                DetailsRow("Preço Justo (Graham)", "R$ ${String.format("%.2f", grahamPrice)}", 
+                    valueColor = if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
+            }
+            if (bazinPrice > 0) {
+                DetailsRow("Preço Teto (Bazin)", "R$ ${String.format("%.2f", bazinPrice)}",
+                    valueColor = if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
             DetailsRow("P/VP", String.format("%.2f", data.pvp))
             DetailsRow("P/L", String.format("%.2f", data.pl))
             DetailsRow("ROE", String.format("%.1f%%", data.roe * 100))
@@ -410,10 +435,10 @@ fun AssetDetails(data: AssetData) {
 }
 
 @Composable
-fun DetailsRow(label: String, value: String) {
+fun DetailsRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, color = Color.Gray)
-        Text(value, fontWeight = FontWeight.Bold)
+        Text(value, fontWeight = FontWeight.Bold, color = valueColor)
     }
 }
 
