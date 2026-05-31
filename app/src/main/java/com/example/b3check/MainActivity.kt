@@ -53,6 +53,8 @@ fun StockAnalysisScreen(
     var tickerInput by remember { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val searchSource by viewModel.searchSource.collectAsState()
+    var selectedAssetType by remember { mutableStateOf("Ação") }
+    val assetTypes = listOf("Ação", "FII", "ETF", "BDR")
 
     Column(
         modifier = Modifier
@@ -86,6 +88,22 @@ fun StockAnalysisScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (searchSource == SearchSource.MANUAL) {
+            Text("Tipo de Ativo", style = MaterialTheme.typography.labelMedium, modifier = Modifier.align(Alignment.Start))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                assetTypes.forEach { type ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(
+                            selected = selectedAssetType == type,
+                            onClick = { selectedAssetType = type }
+                        )
+                        Text(type, fontSize = 12.sp)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         OutlinedTextField(
             value = tickerInput,
             onValueChange = { tickerInput = it.uppercase() },
@@ -97,7 +115,19 @@ fun StockAnalysisScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Button(
-            onClick = { viewModel.analyzeTicker(tickerInput) },
+            onClick = { 
+                if (searchSource == SearchSource.MANUAL && uiState !is StockUiState.Success) {
+                    val emptyData = when(selectedAssetType) {
+                        "FII" -> AssetData.Fii(tickerInput, tickerInput, 0.0, "FII")
+                        "ETF" -> AssetData.Etf(tickerInput, tickerInput, 0.0, "ETF")
+                        "BDR" -> AssetData.Bdr(tickerInput, tickerInput, 0.0, "BDR")
+                        else -> AssetData.Stock(tickerInput, tickerInput, 0.0, "Ação")
+                    }
+                    viewModel.saveManualAsset(emptyData)
+                } else {
+                    viewModel.analyzeTicker(tickerInput)
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
             enabled = tickerInput.isNotBlank()
         ) {
@@ -185,6 +215,14 @@ fun ManualEditor(
             EditRow("Qtd Imóveis", getInd("prop", data.propertyCount.toString()), true) { indicatorStates["prop"] = it }
             EditRow("Taxa Adm (%)", getInd("mFee", (data.managementFee * 100).toString()), true) { indicatorStates["mFee"] = it }
             EditRow("WALT (anos)", getInd("walt", data.weightedLeaseTerm.toString()), true) { indicatorStates["walt"] = it }
+        } else if (data is AssetData.Etf) {
+            EditRow("Taxa Adm (%)", getInd("aFee", (data.adminFee * 100).toString()), true) { indicatorStates["aFee"] = it }
+            EditRow("Tracking Error", getInd("te", data.trackingError.toString()), true) { indicatorStates["te"] = it }
+            EditRow("Volume Diário", getInd("vol", data.avgDailyVolume.toString()), true) { indicatorStates["vol"] = it }
+            EditRow("Holdings", getInd("hold", data.numberOfHoldings.toString()), true) { indicatorStates["hold"] = it }
+        } else if (data is AssetData.Bdr) {
+            EditRow("DY (%)", getInd("dy", (data.dividendYield * 100).toString()), true) { indicatorStates["dy"] = it }
+            EditRow("Paridade", getInd("par", data.parity)) { indicatorStates["par"] = it }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -223,7 +261,22 @@ fun ManualEditor(
                             managementFee = parse(getInd("mFee", "0")) / 100.0,
                             weightedLeaseTerm = parse(getInd("walt", "0"))
                         )
-                        is AssetData.Etf -> data // Manter como está por enquanto
+                        is AssetData.Etf -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            adminFee = parse(getInd("aFee", "0")) / 100.0,
+                            trackingError = parse(getInd("te", "0")),
+                            avgDailyVolume = parse(getInd("vol", "0")),
+                            numberOfHoldings = parse(getInd("hold", "0")).toInt()
+                        )
+                        is AssetData.Bdr -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            dividendYield = parse(getInd("dy", "0")) / 100.0,
+                            parity = getInd("par", "1:1")
+                        )
                     }
                     onSave(updated)
                 },
@@ -263,7 +316,22 @@ fun ManualEditor(
                             managementFee = parse(getInd("mFee", "0")) / 100.0,
                             weightedLeaseTerm = parse(getInd("walt", "0"))
                         )
-                        is AssetData.Etf -> data
+                        is AssetData.Etf -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            adminFee = parse(getInd("aFee", "0")) / 100.0,
+                            trackingError = parse(getInd("te", "0")),
+                            avgDailyVolume = parse(getInd("vol", "0")),
+                            numberOfHoldings = parse(getInd("hold", "0")).toInt()
+                        )
+                        is AssetData.Bdr -> data.copy(
+                            name = nameState,
+                            currentPrice = parse(priceState),
+                            sector = sectorState,
+                            dividendYield = parse(getInd("dy", "0")) / 100.0,
+                            parity = getInd("par", "1:1")
+                        )
                     }
                     onAnalyze(updated)
                 },
@@ -284,7 +352,7 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, onValueChange:
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1.8f).height(32.dp),
-            textStyle = TextStyle(fontSize = 13.sp),
+            textStyle = TextStyle(fontSize = 13.sp, color = Color(0xFFFFD54F)), // Amarelo claro (Amber 300)
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = if(isNum) KeyboardType.Decimal else KeyboardType.Text),
             decorationBox = { innerTextField ->
@@ -331,6 +399,12 @@ fun AssetDetails(data: AssetData) {
             DetailsRow("Gestão", data.managementType)
             DetailsRow("P/VP", String.format("%.2f", data.pvp))
             DetailsRow("DY 12m", String.format("%.1f%%", data.yield12m * 100))
+        } else if (data is AssetData.Etf) {
+            DetailsRow("Taxa Adm", String.format("%.2f%%", data.adminFee * 100))
+            DetailsRow("Holdings", data.numberOfHoldings.toString())
+        } else if (data is AssetData.Bdr) {
+            DetailsRow("Paridade", data.parity)
+            DetailsRow("DY", String.format("%.1f%%", data.dividendYield * 100))
         }
     }
 }

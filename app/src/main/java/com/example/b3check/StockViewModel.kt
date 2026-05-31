@@ -118,6 +118,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             is AssetData.Stock -> calculateStockScore(data)
             is AssetData.Fii -> calculateFiiScore(data)
             is AssetData.Etf -> calculateEtfScore(data)
+            is AssetData.Bdr -> calculateBdrScore(data)
         }
     }
 
@@ -284,6 +285,23 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             score += 1.0
             p.add("Boa diversificação interna")
         }
+
+        data.pros = p.take(10)
+        data.cons = c.take(10)
+        return score.coerceIn(0.0, 10.0)
+    }
+
+    private fun calculateBdrScore(data: AssetData.Bdr): Double {
+        var score = 0.0
+        val p = mutableListOf<String>()
+        val c = mutableListOf<String>()
+
+        if (data.dividendYield >= 0.03) {
+            score += 5.0
+            p.add("Dividend Yield aceitável para BDR")
+        }
+
+        p.add("Exposição ao mercado internacional")
 
         data.pros = p.take(10)
         data.cons = c.take(10)
