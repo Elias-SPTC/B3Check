@@ -13,15 +13,18 @@ class HybridAssetRepository(
         val scraperDeferred = async { scraperRepo.getAssetData(ticker) }
         val apiDeferred = async { apiRepo.getAssetData(ticker) }
 
-        val scraperData = scraperDeferred.await() ?: return@coroutineScope null
+        val scraperData = scraperDeferred.await()
         val apiData = apiDeferred.await()
 
-        // Só substitui se a API retornar um preço válido (maior que zero)
-        if (apiData != null && apiData.currentPrice > 0) {
+        if (scraperData == null) {
+            null
+        } else if (apiData != null && apiData.currentPrice > 0) {
+            // Só substitui se a API retornar um preço válido (maior que zero)
             when (scraperData) {
                 is AssetData.Stock -> scraperData.copy(currentPrice = apiData.currentPrice)
                 is AssetData.Fii -> scraperData.copy(currentPrice = apiData.currentPrice)
                 is AssetData.Etf -> scraperData.copy(currentPrice = apiData.currentPrice)
+                is AssetData.Bdr -> scraperData.copy(currentPrice = apiData.currentPrice)
             }
         } else {
             // Se a API falhou ou retornou preço 0, mantém o dado original do Scraper

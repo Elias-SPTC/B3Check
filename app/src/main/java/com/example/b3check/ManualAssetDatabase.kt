@@ -36,6 +36,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     is AssetData.Stock -> "STOCK"
                     is AssetData.Fii -> "FII"
                     is AssetData.Etf -> "ETF"
+                    is AssetData.Bdr -> "BDR"
                 })
                 put("json_data", gson.toJson(data))
             }
@@ -58,6 +59,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     "STOCK" -> gson.fromJson(json, AssetData.Stock::class.java)
                     "FII" -> gson.fromJson(json, AssetData.Fii::class.java)
                     "ETF" -> gson.fromJson(json, AssetData.Etf::class.java)
+                    "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
                     else -> null
                 }
             } else {
