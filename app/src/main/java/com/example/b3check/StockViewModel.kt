@@ -12,11 +12,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.math.sqrt
 
 enum class SearchSource(val label: String) {
-    BRAPI("Brapi"),
-    FUNDAMENTUS("Fundamentus"),
-    HYBRID("Híbrido"),
-    MANUAL("Manual"),
-    MOCK("Simulação")
+    MANUAL("Inteligente/Manual")
 }
 
 class StockViewModel(application: Application) : AndroidViewModel(application) {
@@ -27,7 +23,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     private val hybridRepo = HybridAssetRepository(apiRepo, scraperRepo)
     private val mockRepo = MockAssetRepository()
 
-    private val _searchSource = MutableStateFlow(SearchSource.HYBRID)
+    private val _searchSource = MutableStateFlow(SearchSource.MANUAL)
     val searchSource: StateFlow<SearchSource> = _searchSource.asStateFlow()
 
     private val _uiState = MutableStateFlow<StockUiState>(StockUiState.Idle)
@@ -45,100 +41,66 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                Log.d("StockViewModel", "Iniciando análise para $t via ${_searchSource.value}")
+                Log.d("StockViewModel", "Iniciando análise inteligente para $t")
                 
-                var data: AssetData? = null
+                var data: AssetData? = try { db.getAsset(t) } catch(e: Exception) { null }
                 
-                if (_searchSource.value == SearchSource.MANUAL) {
-                    val existingData = try { db.getAsset(t) } catch(e: Exception) { null }
+                // Se não existe OU se campos vitais estão vazios, busca na internet
+                val needsFetch = data == null || (data is AssetData.Stock && data.dividendYield5Years <= 0.0)
+                
+                if (needsFetch) {
+                    var internetData = fetchFromRepo(hybridRepo, t)
                     
-                    // Se não existe OU se o dividendo nominal está zerado, buscamos na internet
-                    val needsFetch = existingData == null || (existingData is AssetData.Stock && existingData.dividendYield5Years <= 0.0)
-                    
-                    if (needsFetch) {
-                        Log.d("StockViewModel", "Buscando/Injetando dados via Híbrido para o modo Manual. Necessário: $needsFetch")
-                        var internetData = fetchFromRepo(hybridRepo, t)
-                        
-                        // Fallback para API se o scraper falhar
-                        if (internetData == null) {
-                            Log.d("StockViewModel", "Scraper falhou (403?), tentando Brapi direto...")
-                            internetData = fetchFromRepo(apiRepo, t)
-                        }
-
-                        Log.d("StockViewModel", "Resultado da busca internet: ${internetData?.ticker}")
-                        
-                        data = when {
-                            internetData == null -> {
-                                Log.d("StockViewModel", "Falha ao buscar dados na internet")
-                                existingData
-                            }
-                            existingData == null -> {
-                                Log.d("StockViewModel", "Criando novo registro com dados da internet")
-                                internetData
-                            }
-                            existingData is AssetData.Stock && internetData is AssetData.Stock -> {
-                                Log.d("StockViewModel", "Mesclando dados...")
-                                existingData.copy(
-                                    dividendYield5Years = if (existingData.dividendYield5Years <= 0.0) internetData.dividendYield5Years else existingData.dividendYield5Years
-                                )
-                            }
-                            else -> internetData
-                        }
-                    } else {
-                        data = existingData
+                    // Fallback para API se o scraper falhar
+                    if (internetData == null) {
+                        internetData = fetchFromRepo(apiRepo, t)
                     }
 
-                    // Se o usuário selecionou um tipo diferente via RadioButton, força a mudança de tipo
-                    if (manualType != null && data != null) {
-                        val currentTypeLabel = when(data) {
-                            is AssetData.Stock -> "Ação"
-                            is AssetData.Fii -> "FII"
-                            is AssetData.Etf -> "ETF"
-                            is AssetData.Bdr -> "BDR"
-                        }
-                        if (currentTypeLabel != manualType) {
-                            Log.d("StockViewModel", "Forçando mudança de tipo: $currentTypeLabel -> $manualType")
-                            data = when(manualType) {
-                                "FII" -> AssetData.Fii(t, data!!.name, data!!.currentPrice, "FII")
-                                "ETF" -> AssetData.Etf(t, data!!.name, data!!.currentPrice, "ETF")
-                                "BDR" -> AssetData.Bdr(t, data!!.name, data!!.currentPrice, "BDR")
-                                else -> AssetData.Stock(t, data!!.name, data!!.currentPrice, "Ação")
-                            }
+                    if (internetData != null) {
+                        data = if (data == null) internetData else {
+                            // Mescla dados da internet nos campos vazios do objeto do banco
+                            if (data is AssetData.Stock && internetData is AssetData.Stock) {
+                                val mergedSources = data.fieldSources.toMutableMap()
+                                internetData.fieldSources.forEach { (k, v) ->
+                                    if (data.fieldSources[k] == null) mergedSources[k] = v
+                                }
+                                data.copy(
+                                    dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
+                                    grahamPrice = if (data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
+                                    bazinPrice = if (data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
+                                    isInPortfolio = data.isInPortfolio
+                                ).apply { fieldSources = mergedSources }
+                            } else internetData
                         }
                     }
+                }
 
-                    // Caso final: se mesmo após tudo ainda estiver nulo, cria um objeto vazio se houver tipo selecionado
-                    if (data == null && manualType != null) {
-                        data = when(manualType) {
-                            "FII" -> AssetData.Fii(t, t, 0.0, "FII")
-                            "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
-                            "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
-                            else -> AssetData.Stock(t, t, 0.0, "Ação")
-                        }
+                // Se mesmo assim for nulo, tenta MOCK como último recurso (Simulação)
+                if (data == null) {
+                    data = fetchFromRepo(mockRepo, t)
+                }
+
+                // Fallback final: Objeto vazio com tipo selecionado
+                if (data == null && manualType != null) {
+                    data = when(manualType) {
+                        "FII" -> AssetData.Fii(t, t, 0.0, "FII")
+                        "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
+                        "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
+                        else -> AssetData.Stock(t, t, 0.0, "Ação")
                     }
-                } else {
-                    val selectedRepo = when (_searchSource.value) {
-                        SearchSource.BRAPI -> apiRepo
-                        SearchSource.FUNDAMENTUS -> scraperRepo
-                        SearchSource.HYBRID -> hybridRepo
-                        SearchSource.MOCK -> mockRepo
-                        SearchSource.MANUAL -> hybridRepo // Should not happen
-                    }
-                    data = fetchFromRepo(selectedRepo, t)
                 }
 
                 if (data != null) {
-                    if (_searchSource.value == SearchSource.MANUAL) {
-                        db.saveAsset(data) // Salva no banco o que foi mesclado/buscado para persistir a injeção
-                    }
-                    val score = calculateScoreForAsset(data)
-                    _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
+                    db.saveAsset(data!!) // Persiste
+                    val score = calculateScoreForAsset(data!!)
+                    _uiState.value = StockUiState.Success(data!!, score)
+                    loadAllAssets()
                 } else {
-                    handleError(t)
+                    handleError(ticker)
                 }
             } catch (e: Exception) {
                 Log.e("StockViewModel", "Erro fatal na análise de $t", e)
-                _uiState.value = StockUiState.Error("Ocorreu um erro interno. Tente novamente.")
+                _uiState.value = StockUiState.Error("Ocorreu um erro interno.")
             }
         }
     }
@@ -159,23 +121,26 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun handleError(ticker: String) {
-        _uiState.value = StockUiState.Error("Não foi possível conectar aos servidores (Erro 403 ou conexão). Tente novamente em alguns instantes.")
-        
-        // Tenta Mock apenas como último recurso silencioso
-        val mockData = mockRepo.getAssetData(ticker)
-        if (mockData != null && _searchSource.value == SearchSource.MOCK) {
-            val score = calculateScoreForAsset(mockData)
-            _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
-        }
+        _uiState.value = StockUiState.Error("Não foi possível obter dados para $ticker.")
     }
 
     fun saveManualAsset(data: AssetData) {
         viewModelScope.launch {
+            // Marca campos vindo do editor como USER
+            val fieldKeys = when(data) {
+                is AssetData.Stock -> listOf("name", "currentPrice", "lpa", "vpa", "roe", "dy", "dy5", "de", "ml", "pl", "pvp", "payout", "graham", "bazin", "valSource")
+                is AssetData.Fii -> listOf("name", "currentPrice", "pvp", "vac", "y12", "y5", "prop", "aum", "mFee", "walt", "fType", "mType")
+                is AssetData.Etf -> listOf("name", "currentPrice", "aFee", "te", "vol", "hold")
+                is AssetData.Bdr -> listOf("name", "currentPrice", "dy", "par")
+            }
+            val newSources = data.fieldSources.toMutableMap()
+            fieldKeys.forEach { newSources[it] = FieldSource.USER }
+            data.fieldSources = newSources
+
             db.saveAsset(data)
-            // Atualiza a UI com os novos dados e score recalculado
             val score = calculateScoreForAsset(data)
-            _uiState.value = StockUiState.Success(data, score, isMockData = false)
-            loadAllAssets() // Atualiza lista global e recomendações
+            _uiState.value = StockUiState.Success(data, score)
+            loadAllAssets()
         }
     }
 
@@ -183,7 +148,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             db.deleteAsset(ticker)
             _uiState.value = StockUiState.Idle
-            loadAllAssets() // Recarrega lista
+            loadAllAssets()
         }
     }
 
@@ -192,6 +157,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _recommendations = MutableStateFlow<List<AssetData>>(emptyList())
     val recommendations: StateFlow<List<AssetData>> = _recommendations.asStateFlow()
+
+    private val _portfolioAllocation = MutableStateFlow<List<Pair<AssetData, Double>>>(emptyList())
+    val portfolioAllocation: StateFlow<List<Pair<AssetData, Double>>> = _portfolioAllocation.asStateFlow()
 
     init {
         loadAllAssets()
@@ -202,17 +170,33 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             val list = db.getAllAssets()
             _allAssets.value = list
             updateRecommendations(list)
+            updatePortfolioAllocation(list)
         }
     }
 
     private fun updateRecommendations(list: List<AssetData>) {
-        // Filtra e ordena para as 5 melhores opções (Score combinando BH e Div)
         val recommended = list
+            .filter { !it.isInPortfolio }
             .map { it to calculateScoreForAsset(it) }
             .sortedByDescending { it.second }
             .take(5)
             .map { it.first }
         _recommendations.value = recommended
+    }
+
+    private fun updatePortfolioAllocation(list: List<AssetData>) {
+        val portfolio = list.filter { it.isInPortfolio }
+        val scoredPortfolio = portfolio.map { it to calculateScoreForAsset(it) }
+        val totalScore = scoredPortfolio.sumOf { it.second }
+        
+        val allocation = if (totalScore > 0) {
+            scoredPortfolio.map { (asset, score) ->
+                asset to (score / totalScore) * 100.0
+            }.sortedByDescending { it.second }
+        } else {
+            scoredPortfolio.map { it.first to 0.0 }
+        }
+        _portfolioAllocation.value = allocation
     }
 
     fun exportBackup(): String = db.exportBackup()
@@ -239,7 +223,6 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        // DY Médio 5 anos
         if (data.dividendYield5Years >= 0.06) {
             score += 1.0
             p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
@@ -333,13 +316,11 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        // Bonus para Gestão Ativa
         if (data.managementType.contains("Ativa", ignoreCase = true)) {
             score += 0.5
             p.add("Gestão Ativa (Potencial de alpha)")
         }
 
-        // DY Médio 5 anos
         if (data.avgYield5Years >= 0.08) {
             score += 1.0
             p.add("DY Histórico sólido (> 8% nos últimos 5 anos)")
@@ -451,6 +432,6 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 sealed class StockUiState {
     data object Idle : StockUiState()
     data object Loading : StockUiState()
-    data class Success(val data: AssetData, val score: Double, val isMockData: Boolean) : StockUiState()
+    data class Success(val data: AssetData, val score: Double) : StockUiState()
     data class Error(val message: String) : StockUiState()
 }

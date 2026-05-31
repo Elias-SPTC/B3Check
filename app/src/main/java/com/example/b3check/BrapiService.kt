@@ -118,6 +118,15 @@ fun AssetDto.toAssetData(): AssetData {
             dividendYield = dyReal,
             debtToEquity = (financialData?.debtToEquity ?: 0.0) / 100.0,
             valuationSource = "Brapi"
-        )
+        ).apply {
+            fieldSources = mapOf(
+                "name" to FieldSource.INTERNET, "currentPrice" to FieldSource.INTERNET,
+                "lpa" to FieldSource.INTERNET, "vpa" to FieldSource.INTERNET,
+                "dy" to FieldSource.INTERNET, "dy5" to FieldSource.INTERNET,
+                "ml" to FieldSource.INTERNET, "roe" to FieldSource.INTERNET,
+                "pl" to FieldSource.INTERNET, "pvp" to FieldSource.INTERNET,
+                "de" to FieldSource.INTERNET, "payout" to FieldSource.INTERNET
+            )
+        }
     }
 }

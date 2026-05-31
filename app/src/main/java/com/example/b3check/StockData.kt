@@ -1,13 +1,17 @@
 package com.example.b3check
 
+enum class FieldSource { INTERNET, SIMULATION, USER }
+
 sealed class AssetData {
     abstract val ticker: String
     abstract val name: String
     abstract val currentPrice: Double
     abstract val sector: String
+    abstract val isInPortfolio: Boolean
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
-    var mockedFields: Set<String> = emptySet()
+    var mockedFields: Set<String> = emptySet() // Para compatibilidade se necessário
+    var fieldSources: Map<String, FieldSource> = emptyMap()
 
     data class Stock(
         override val ticker: String,
@@ -33,7 +37,8 @@ sealed class AssetData {
         val defaultRate: Double = 0.0,
         val grahamPrice: Double = 0.0,
         val bazinPrice: Double = 0.0,
-        val valuationSource: String = ""
+        val valuationSource: String = "",
+        override val isInPortfolio: Boolean = false
     ) : AssetData()
 
     data class Fii(
@@ -54,7 +59,8 @@ sealed class AssetData {
         val weightedLeaseTerm: Double = 0.0,
         val managementFee: Double = 0.0,
         val propertyCount: Int = 1,
-        val aum: Double = 0.0
+        val aum: Double = 0.0,
+        override val isInPortfolio: Boolean = false
     ) : AssetData()
 
     data class Etf(
@@ -68,7 +74,8 @@ sealed class AssetData {
         val benchmarkPerformance12m: Double = 0.0,
         val aum: Double = 0.0,
         val numberOfHoldings: Int = 1,
-        val isPassive: Boolean = true
+        val isPassive: Boolean = true,
+        override val isInPortfolio: Boolean = false
     ) : AssetData()
 
     data class Bdr(
@@ -77,6 +84,7 @@ sealed class AssetData {
         override val currentPrice: Double,
         override val sector: String,
         val dividendYield: Double = 0.0,
-        val parity: String = "1:1"
+        val parity: String = "1:1",
+        override val isInPortfolio: Boolean = false
     ) : AssetData()
 }

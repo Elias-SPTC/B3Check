@@ -34,19 +34,41 @@ class MockAssetRepository : AssetRepository {
         netMargin = 0.14, cagrProfit5Years = 0.12, cagrRevenue5Years = 0.09,
         payout = 0.6, roe = 0.24, pvp = 1.15, pl = 12.0, dividendYield = 0.05, debtToEquity = 0.4,
         grahamPrice = 45.0, bazinPrice = 50.0, valuationSource = "Simulação"
-    )
+    ).apply {
+        fieldSources = mapOf(
+            "name" to FieldSource.SIMULATION, "currentPrice" to FieldSource.SIMULATION,
+            "lpa" to FieldSource.SIMULATION, "vpa" to FieldSource.SIMULATION,
+            "dy" to FieldSource.SIMULATION, "dy5" to FieldSource.SIMULATION,
+            "roe" to FieldSource.SIMULATION, "pl" to FieldSource.SIMULATION,
+            "pvp" to FieldSource.SIMULATION, "graham" to FieldSource.SIMULATION,
+            "bazin" to FieldSource.SIMULATION
+        )
+    }
 
     private fun getMockFii(t: String) = AssetData.Fii(
         ticker = t, name = "Fundo Imobiliário Mock", currentPrice = 110.0, sector = "Papel",
         pvp = 0.99, vacancy = 0.02, yield12m = 0.11, ffoMargin = 0.9,
         multiProperty = true, multiTenant = true, capRate = 0.12,
         weightedLeaseTerm = 4.5, managementFee = 0.008, propertyCount = 12, aum = 2_000_000_000.0
-    )
+    ).apply {
+        fieldSources = mapOf(
+            "name" to FieldSource.SIMULATION, "currentPrice" to FieldSource.SIMULATION,
+            "pvp" to FieldSource.SIMULATION, "vac" to FieldSource.SIMULATION,
+            "y12" to FieldSource.SIMULATION, "y5" to FieldSource.SIMULATION,
+            "prop" to FieldSource.SIMULATION, "aum" to FieldSource.SIMULATION
+        )
+    }
 
     private fun getMockEtf(t: String) = AssetData.Etf(
         ticker = t, name = "ETF Simulado Index", currentPrice = 210.0, sector = "Internacional",
         adminFee = 0.0025, trackingError = 0.003, avgDailyVolume = 8_000_000.0,
         benchmarkPerformance12m = 0.18, aum = 1_500_000_000.0,
         numberOfHoldings = 500, isPassive = true
-    )
+    ).apply {
+        fieldSources = mapOf(
+            "name" to FieldSource.SIMULATION, "currentPrice" to FieldSource.SIMULATION,
+            "aFee" to FieldSource.SIMULATION, "te" to FieldSource.SIMULATION,
+            "vol" to FieldSource.SIMULATION, "hold" to FieldSource.SIMULATION
+        )
+    }
 }

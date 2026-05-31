@@ -119,6 +119,15 @@ class Investidor10ScraperRepository : AssetRepository {
                     bazinPrice = bazin,
                     valuationSource = "Investidor10"
                 ).apply {
+                    fieldSources = mapOf(
+                        "name" to FieldSource.INTERNET, "currentPrice" to FieldSource.INTERNET,
+                        "lpa" to FieldSource.INTERNET, "vpa" to FieldSource.INTERNET,
+                        "dy" to FieldSource.INTERNET, "dy5" to FieldSource.INTERNET,
+                        "ml" to FieldSource.INTERNET, "roe" to FieldSource.INTERNET,
+                        "pl" to FieldSource.INTERNET, "pvp" to FieldSource.INTERNET,
+                        "de" to FieldSource.INTERNET, "payout" to FieldSource.INTERNET,
+                        "graham" to FieldSource.INTERNET, "bazin" to FieldSource.INTERNET
+                    )
                     val mocked = mutableSetOf<String>()
                     if (price == 0.0) mocked.add("Preço Atual")
                     if (roe == 0.0) mocked.add("ROE")
