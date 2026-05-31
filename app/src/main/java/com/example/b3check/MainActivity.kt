@@ -367,6 +367,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["dy5"] = format(data.dividendYield5Years * 100); indicatorStates["de"] = format(data.debtToEquity)
             indicatorStates["ml"] = format(data.netMargin * 100); indicatorStates["pl"] = format(data.pl)
             indicatorStates["pvp"] = format(data.pvp); indicatorStates["payout"] = format(data.payout * 100)
+            indicatorStates["basel"] = format(data.baselIndex)
             indicatorStates["graham"] = format(data.grahamPrice); indicatorStates["bazin"] = format(data.bazinPrice)
             indicatorStates["valSource"] = data.valuationSource
         } else if (data is AssetData.Fii) {
@@ -426,10 +427,17 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         if (data is AssetData.Stock) {
             EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
             EditRow("VPA", indicatorStates["vpa"] ?: "", true, data.fieldSources?.get("vpa")) { indicatorStates["vpa"] = it }
+            EditRow("P/L", indicatorStates["pl"] ?: "", true, data.fieldSources?.get("pl")) { indicatorStates["pl"] = it }
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
             EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, data.fieldSources?.get("roe")) { indicatorStates["roe"] = it }
+            EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true, data.fieldSources?.get("ml")) { indicatorStates["ml"] = it }
+            EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true, data.fieldSources?.get("de")) { indicatorStates["de"] = it }
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
+            if (data.sector.contains("Banc", ignoreCase = true)) {
+                EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
+            }
             Spacer(modifier = Modifier.height(8.dp))
             EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
@@ -442,6 +450,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
+            EditRow("Tipo Fundo", indicatorStates["fType"] ?: "", false, data.fieldSources?.get("fType")) { indicatorStates["fType"] = it }
+            EditRow("Gestão", indicatorStates["mType"] ?: "", false, data.fieldSources?.get("mType")) { indicatorStates["mType"] = it }
         } else if (data is AssetData.Etf) {
             EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, data.fieldSources?.get("aFee")) { indicatorStates["aFee"] = it }
             EditRow("Tracking Error", indicatorStates["te"] ?: "", true, data.fieldSources?.get("te")) { indicatorStates["te"] = it }
@@ -460,6 +470,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         lpa = parse(indicatorStates["lpa"] ?: "0"), vpa = parse(indicatorStates["vpa"] ?: "0"),
                         roe = parse(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parse(indicatorStates["dy"] ?: "0") / 100.0,
                         dividendYield5Years = parse(indicatorStates["dy5"] ?: "0") / 100.0, payout = parse(indicatorStates["payout"] ?: "0") / 100.0,
+                        netMargin = parse(indicatorStates["ml"] ?: "0") / 100.0, debtToEquity = parse(indicatorStates["de"] ?: "0"),
+                        pl = parse(indicatorStates["pl"] ?: "0"), pvp = parse(indicatorStates["pvp"] ?: "0"),
+                        baselIndex = parse(indicatorStates["basel"] ?: "0"),
                         grahamPrice = parse(indicatorStates["graham"] ?: "0"), bazinPrice = parse(indicatorStates["bazin"] ?: "0")
                     )
                     is AssetData.Fii -> data.copy(
@@ -467,7 +480,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         pvp = parse(indicatorStates["pvp"] ?: "0"), vacancy = parse(indicatorStates["vac"] ?: "0") / 100.0,
                         yield12m = parse(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parse(indicatorStates["y5"] ?: "0") / 100.0,
                         propertyCount = parse(indicatorStates["prop"] ?: "0").toInt(), aum = parse(indicatorStates["aum"] ?: "0") * 1_000_000.0,
-                        managementFee = parse(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parse(indicatorStates["walt"] ?: "0")
+                        managementFee = parse(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parse(indicatorStates["walt"] ?: "0"),
+                        fundType = indicatorStates["fType"] ?: "", managementType = indicatorStates["mType"] ?: ""
                     )
                     is AssetData.Etf -> data.copy(
                         name = nameState, currentPrice = parse(priceState), sector = sectorState, isInPortfolio = inPortfolioState,
@@ -540,13 +554,21 @@ fun AssetDetails(data: AssetData) {
             val bazinPrice = if (data.bazinPrice > 0) data.bazinPrice else if (data.dividendYield5Years > 0) (data.dividendYield5Years * data.currentPrice) / 0.06 else 0.0
             if (grahamPrice > 0) DetailsRow("Graham", "R$ ${String.format("%.2f", grahamPrice)}", if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
             if (bazinPrice > 0) DetailsRow("Bazin", "R$ ${String.format("%.2f", bazinPrice)}", if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
+            Spacer(modifier = Modifier.height(8.dp))
+            DetailsRow("P/L", String.format("%.2f", data.pl))
+            DetailsRow("P/VP", String.format("%.2f", data.pvp))
+            DetailsRow("ROE", String.format("%.1f%%", data.roe * 100))
+            DetailsRow("Margem Líq", String.format("%.1f%%", data.netMargin * 100))
+            DetailsRow("Dív/Patrim", String.format("%.2f", data.debtToEquity))
         } else if (data is AssetData.Fii) {
             DetailsRow("P/VP", String.format("%.2f", data.pvp))
             DetailsRow("DY 12m", String.format("%.1f%%", data.yield12m * 100))
             DetailsRow("Vacância", String.format("%.1f%%", data.vacancy * 100), if (data.vacancy <= 0.05) Color(0xFF2E7D32) else Color.Red)
+            DetailsRow("WALT", String.format("%.1f anos", data.weightedLeaseTerm))
             DetailsRow("Imóveis", data.propertyCount.toString())
         } else if (data is AssetData.Etf) {
             DetailsRow("Taxa Adm", String.format("%.2f%%", data.adminFee * 100), if (data.adminFee <= 0.005) Color(0xFF2E7D32) else Color.Red)
+            DetailsRow("Vol. Diário", "M R$ ${String.format("%.1f", data.avgDailyVolume / 1_000_000.0)}")
             DetailsRow("Holdings", data.numberOfHoldings.toString())
         } else if (data is AssetData.Bdr) {
             DetailsRow("DY Atual", String.format("%.1f%%", data.dividendYield * 100))
