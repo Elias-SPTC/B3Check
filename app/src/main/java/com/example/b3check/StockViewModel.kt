@@ -50,19 +50,51 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 var data: AssetData? = null
                 
                 if (_searchSource.value == SearchSource.MANUAL) {
-                    data = try { db.getAsset(t) } catch(e: Exception) { null }
-                    if (data == null) {
-                        if (manualType != null) {
-                            Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, criando como $manualType")
-                            data = when(manualType) {
-                                "FII" -> AssetData.Fii(t, t, 0.0, "FII")
-                                "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
-                                "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
-                                else -> AssetData.Stock(t, t, 0.0, "Ação")
+                    val existingData = try { db.getAsset(t) } catch(e: Exception) { null }
+                    
+                    // Se não existe OU se o dividendo nominal está zerado, buscamos na internet
+                    val needsFetch = existingData == null || (existingData is AssetData.Stock && existingData.dividendYield5Years <= 0.0)
+                    
+                    if (needsFetch) {
+                        Log.d("StockViewModel", "Buscando/Injetando dados via Híbrido para o modo Manual. Necessário: $needsFetch")
+                        var internetData = fetchFromRepo(hybridRepo, t)
+                        
+                        // Fallback para API se o scraper falhar
+                        if (internetData == null) {
+                            Log.d("StockViewModel", "Scraper falhou (403?), tentando Brapi direto...")
+                            internetData = fetchFromRepo(apiRepo, t)
+                        }
+
+                        Log.d("StockViewModel", "Resultado da busca internet: ${internetData?.ticker}")
+                        
+                        data = when {
+                            internetData == null -> {
+                                Log.d("StockViewModel", "Falha ao buscar dados na internet")
+                                existingData
                             }
-                        } else {
-                            Log.d("StockViewModel", "Ticker $t não encontrado no banco manual, buscando via Híbrido")
-                            data = fetchFromRepo(hybridRepo, t)
+                            existingData == null -> {
+                                Log.d("StockViewModel", "Criando novo registro com dados da internet")
+                                internetData
+                            }
+                            existingData is AssetData.Stock && internetData is AssetData.Stock -> {
+                                Log.d("StockViewModel", "Mesclando dados...")
+                                existingData.copy(
+                                    dividendYield5Years = if (existingData.dividendYield5Years <= 0.0) internetData.dividendYield5Years else existingData.dividendYield5Years
+                                )
+                            }
+                            else -> internetData
+                        }
+                    } else {
+                        data = existingData
+                    }
+
+                    // Caso final: se mesmo após tudo ainda estiver nulo, cria um objeto vazio se houver tipo selecionado
+                    if (data == null && manualType != null) {
+                        data = when(manualType) {
+                            "FII" -> AssetData.Fii(t, t, 0.0, "FII")
+                            "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
+                            "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
+                            else -> AssetData.Stock(t, t, 0.0, "Ação")
                         }
                     }
                 } else {
@@ -77,6 +109,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 if (data != null) {
+                    if (_searchSource.value == SearchSource.MANUAL) {
+                        db.saveAsset(data) // Salva no banco o que foi mesclado/buscado para persistir a injeção
+                    }
                     val score = calculateScoreForAsset(data)
                     _uiState.value = StockUiState.Success(data, score, isMockData = _searchSource.value == SearchSource.MOCK)
                 } else {
@@ -92,25 +127,26 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun fetchFromRepo(repo: AssetRepository, ticker: String): AssetData? {
         return try {
             withTimeout(10000) {
-                repo.getAssetData(ticker)
+                val result = repo.getAssetData(ticker)
+                if (result == null) {
+                    Log.d("StockViewModel", "Repositório ${repo.javaClass.simpleName} retornou NULL para $ticker")
+                }
+                result
             }
         } catch (e: Exception) {
-            Log.e("StockViewModel", "Erro no repositório: ${e.message}")
+            Log.e("StockViewModel", "Erro no repositório ${repo.javaClass.simpleName}: ${e.message}")
             null
         }
     }
 
     private suspend fun handleError(ticker: String) {
-        if (_searchSource.value != SearchSource.MOCK) {
-            val mockData = mockRepo.getAssetData(ticker)
-            if (mockData != null) {
-                val score = calculateScoreForAsset(mockData)
-                _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
-            } else {
-                _uiState.value = StockUiState.Error("Não foi possível obter dados para este ticker.")
-            }
-        } else {
-            _uiState.value = StockUiState.Error("Ticker não encontrado no Mock.")
+        _uiState.value = StockUiState.Error("Não foi possível conectar aos servidores (Erro 403 ou conexão). Tente novamente em alguns instantes.")
+        
+        // Tenta Mock apenas como último recurso silencioso
+        val mockData = mockRepo.getAssetData(ticker)
+        if (mockData != null && _searchSource.value == SearchSource.MOCK) {
+            val score = calculateScoreForAsset(mockData)
+            _uiState.value = StockUiState.Success(mockData, score, isMockData = true)
         }
     }
 

@@ -104,7 +104,6 @@ fun AssetDto.toAssetData(): AssetData {
             sector = sector ?: "Ações",
             lpa = defaultKeyStatistics?.trailingEps ?: 0.0,
             vpa = defaultKeyStatistics?.bookValue ?: 0.0,
-            avgDividend5Years = dyReal * (regularMarketPrice ?: 0.0),
             dividendYield5Years = dyReal,
             paidDividendsLast5Years = true,
             netDebt = (financialData?.totalDebt ?: 0L).toDouble(),

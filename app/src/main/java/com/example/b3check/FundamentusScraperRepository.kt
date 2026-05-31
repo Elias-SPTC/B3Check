@@ -23,9 +23,14 @@ class FundamentusScraperRepository : AssetRepository {
             connection = url.openConnection() as HttpURLConnection
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+            connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7")
 
-            if (connection.responseCode != 200) return@withContext null
+            if (connection.responseCode != 200) {
+                Log.e("Scraper", "Fundamentus retornou erro ${connection.responseCode}")
+                return@withContext null
+            }
 
             val html = connection.inputStream.bufferedReader().use { it.readText() }
             val doc = Jsoup.parse(html)
@@ -68,7 +73,6 @@ class FundamentusScraperRepository : AssetRepository {
                     ticker = t, name = name, currentPrice = price, sector = "Ação",
                     lpa = if (pl > 0) price / pl else 1.0,
                     vpa = if (pvp > 0) price / pvp else 1.0,
-                    avgDividend5Years = dy * price, 
                     dividendYield5Years = dy,
                     paidDividendsLast5Years = true,
                     netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,

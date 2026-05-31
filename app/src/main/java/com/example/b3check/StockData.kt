@@ -16,7 +16,6 @@ sealed class AssetData {
         override val sector: String,
         val lpa: Double = 0.0,
         val vpa: Double = 0.0,
-        val avgDividend5Years: Double = 0.0,
         val dividendYield5Years: Double = 0.0,
         val paidDividendsLast5Years: Boolean = true,
         val netDebt: Double = 0.0,

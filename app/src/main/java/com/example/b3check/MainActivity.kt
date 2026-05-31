@@ -169,11 +169,42 @@ fun ManualEditor(
     var nameState by remember(data) { mutableStateOf(data.name) }
     var priceState by remember(data) { mutableStateOf(data.currentPrice.toString()) }
     var sectorState by remember(data) { mutableStateOf(if (data.sector == "FII" || data.sector == "Ação") "" else data.sector) }
+    
+    // IMPORTANTE: O indicatorStates precisa ser resetado quando o 'data' muda (ex: após busca na internet)
     val indicatorStates = remember(data) { mutableStateMapOf<String, String>() }
 
-    fun getInd(key: String, def: String) = indicatorStates.getOrPut(key) { def }
-
     fun parse(v: String) = v.replace(",", ".").toDoubleOrNull() ?: 0.0
+    fun format(v: Double) = if (v == 0.0) "" else String.format("%.2f", v).replace(".", ",")
+
+    // Inicializa ou atualiza os estados quando o dado muda
+    LaunchedEffect(data) {
+        if (data is AssetData.Stock) {
+            indicatorStates["lpa"] = format(data.lpa)
+            indicatorStates["vpa"] = format(data.vpa)
+            indicatorStates["roe"] = format(data.roe * 100)
+            indicatorStates["dy"] = format(data.dividendYield * 100)
+            indicatorStates["dy5"] = format(data.dividendYield5Years * 100)
+            indicatorStates["de"] = format(data.debtToEquity)
+            indicatorStates["ml"] = format(data.netMargin * 100)
+            indicatorStates["pl"] = format(data.pl)
+            indicatorStates["pvp"] = format(data.pvp)
+            indicatorStates["payout"] = format(data.payout * 100)
+            indicatorStates["basel"] = format(data.baselIndex)
+        } else if (data is AssetData.Fii) {
+            indicatorStates["fType"] = data.fundType
+            indicatorStates["mType"] = data.managementType
+            indicatorStates["dy12"] = format(data.yield12m * 100)
+            indicatorStates["dy5"] = format(data.avgYield5Years * 100)
+            indicatorStates["pvp"] = format(data.pvp)
+            indicatorStates["vac"] = format(data.vacancy * 100)
+            indicatorStates["aum"] = format(data.aum / 1_000_000.0)
+            indicatorStates["prop"] = data.propertyCount.toString()
+            indicatorStates["mFee"] = format(data.managementFee * 100)
+            indicatorStates["walt"] = format(data.weightedLeaseTerm)
+        }
+    }
+
+    fun getInd(key: String, def: String) = indicatorStates.get(key) ?: def
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Edição Manual", style = MaterialTheme.typography.titleMedium, color = Color(0xFF673AB7))
@@ -189,16 +220,18 @@ fun ManualEditor(
         EditRow("Segmento", sectorState) { sectorState = it }
 
         if (data is AssetData.Stock) {
-            EditRow("LPA", getInd("lpa", data.lpa.toString()), true) { indicatorStates["lpa"] = it }
-            EditRow("VPA", getInd("vpa", data.vpa.toString()), true) { indicatorStates["vpa"] = it }
-            EditRow("ROE (%)", getInd("roe", (data.roe * 100).toString()), true) { indicatorStates["roe"] = it }
-            EditRow("DY Atual (%)", getInd("dy", (data.dividendYield * 100).toString()), true) { indicatorStates["dy"] = it }
-            EditRow("DY 5a (%)", getInd("dy5", (data.dividendYield5Years * 100).toString()), true) { indicatorStates["dy5"] = it }
-            EditRow("Dív/Patrim", getInd("de", data.debtToEquity.toString()), true) { indicatorStates["de"] = it }
-            EditRow("Margem Líq (%)", getInd("ml", (data.netMargin * 100).toString()), true) { indicatorStates["ml"] = it }
-            EditRow("P/L", getInd("pl", data.pl.toString()), true) { indicatorStates["pl"] = it }
-            EditRow("P/VP", getInd("pvp", data.pvp.toString()), true) { indicatorStates["pvp"] = it }
-            EditRow("Payout (%)", getInd("payout", (data.payout * 100).toString()), true) { indicatorStates["payout"] = it }
+            EditRow("LPA", getInd("lpa", format(data.lpa)), true) { indicatorStates["lpa"] = it }
+            EditRow("VPA", getInd("vpa", format(data.vpa)), true) { indicatorStates["vpa"] = it }
+            EditRow("ROE (%)", getInd("roe", format(data.roe * 100)), true) { indicatorStates["roe"] = it }
+            EditRow("DY Atual (%)", getInd("dy", format(data.dividendYield * 100)), true) { indicatorStates["dy"] = it }
+            EditRow("DY 5a (%)", getInd("dy5", format(data.dividendYield5Years * 100)), true) { 
+                indicatorStates["dy5"] = it 
+            }
+            EditRow("Dív/Patrim", getInd("de", format(data.debtToEquity)), true) { indicatorStates["de"] = it }
+            EditRow("Margem Líq (%)", getInd("ml", format(data.netMargin * 100)), true) { indicatorStates["ml"] = it }
+            EditRow("P/L", getInd("pl", format(data.pl)), true) { indicatorStates["pl"] = it }
+            EditRow("P/VP", getInd("pvp", format(data.pvp)), true) { indicatorStates["pvp"] = it }
+            EditRow("Payout (%)", getInd("payout", format(data.payout * 100)), true) { indicatorStates["payout"] = it }
             if (data.sector == "Bancário") {
                 EditRow("Índ. Basileia", getInd("basel", data.baselIndex.toString()), true) { indicatorStates["basel"] = it }
             }
@@ -238,7 +271,6 @@ fun ManualEditor(
                             roe = parse(getInd("roe", "0")) / 100.0,
                             dividendYield = parse(getInd("dy", "0")) / 100.0,
                             dividendYield5Years = parse(getInd("dy5", "0")) / 100.0,
-                            avgDividend5Years = (parse(getInd("dy5", "0")) / 100.0) * parse(priceState),
                             debtToEquity = parse(getInd("de", "0")),
                             netMargin = parse(getInd("ml", "0")) / 100.0,
                             pl = parse(getInd("pl", "0")),
@@ -295,7 +327,6 @@ fun ManualEditor(
                             roe = parse(getInd("roe", "0")) / 100.0,
                             dividendYield = parse(getInd("dy", "0")) / 100.0,
                             dividendYield5Years = parse(getInd("dy5", "0")) / 100.0,
-                            avgDividend5Years = (parse(getInd("dy5", "0")) / 100.0) * parse(priceState),
                             debtToEquity = parse(getInd("de", "0")),
                             netMargin = parse(getInd("ml", "0")) / 100.0,
                             pl = parse(getInd("pl", "0")),
@@ -347,8 +378,7 @@ fun ManualEditor(
             onClick = {
                 val cleaned = when (data) {
                     is AssetData.Stock -> data.copy(
-                        dividendYield5Years = if (data.avgDividend5Years > 0 && data.avgDividend5Years < 1.0) data.avgDividend5Years else data.dividendYield5Years,
-                        avgDividend5Years = if (data.avgDividend5Years > 0 && data.avgDividend5Years < 1.0) data.avgDividend5Years * data.currentPrice else data.avgDividend5Years
+                        dividendYield5Years = if (data.dividendYield5Years == 0.0 && data.dividendYield > 0.0) data.dividendYield else data.dividendYield5Years
                     )
                     else -> data
                 }
@@ -357,7 +387,7 @@ fun ManualEditor(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF673AB7))
         ) {
-            Text("Limpar Erros de Cálculo (Legado)")
+            Text("Corrigir Dados (Fallback)")
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -426,18 +456,29 @@ fun AssetDetails(data: AssetData) {
                 sqrt(22.5 * data.lpa * data.vpa)
             } else 0.0
             
-            val bazinPrice = if (data.dividendYield5Years > 0) {
-                (data.dividendYield5Years * data.currentPrice) / 0.06
-            } else if (data.avgDividend5Years > 0) {
-                data.avgDividend5Years / 0.06
-            } else 0.0
+            val bazinPrice: Double
+            val bazinMethod: String
+            
+            if (data.dividendYield5Years > 0) {
+                bazinPrice = (data.dividendYield5Years * data.currentPrice) / 0.06
+                bazinMethod = "(Base: Yield 5a %)"
+            } else if (data.lpa > 0 && data.payout > 0) {
+                bazinPrice = (data.lpa * data.payout) / 0.06
+                bazinMethod = "(Base: LPA/Payout)"
+            } else if (data.dividendYield > 0) {
+                bazinPrice = (data.dividendYield * data.currentPrice) / 0.06
+                bazinMethod = "(Base: DY Atual)"
+            } else {
+                bazinPrice = 0.0
+                bazinMethod = ""
+            }
 
             if (grahamPrice > 0) {
                 DetailsRow("Preço Justo (Graham)", "R$ ${String.format("%.2f", grahamPrice)}", 
                     valueColor = if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
             }
             if (bazinPrice > 0) {
-                DetailsRow("Preço Teto (Bazin)", "R$ ${String.format("%.2f", bazinPrice)}",
+                DetailsRow("Preço Teto (Bazin) $bazinMethod", "R$ ${String.format("%.2f", bazinPrice)}",
                     valueColor = if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
             }
 
