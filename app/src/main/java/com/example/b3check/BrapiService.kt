@@ -116,7 +116,8 @@ fun AssetDto.toAssetData(): AssetData {
             pvp = priceToBook ?: defaultKeyStatistics?.priceToBook ?: 0.0,
             pl = defaultKeyStatistics?.trailingPE ?: priceEarnings ?: 0.0,
             dividendYield = dyReal,
-            debtToEquity = (financialData?.debtToEquity ?: 0.0) / 100.0
+            debtToEquity = (financialData?.debtToEquity ?: 0.0) / 100.0,
+            valuationSource = "Brapi"
         )
     }
 }

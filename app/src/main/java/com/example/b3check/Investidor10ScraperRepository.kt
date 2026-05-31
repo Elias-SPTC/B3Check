@@ -80,8 +80,11 @@ class Investidor10ScraperRepository : AssetRepository {
             
             val dy5Str = findInGrid("DY MÉDIO (5 ANOS)") ?: findInGrid("DY MÉDIO 5 ANOS")
             val dy5 = parsePercentage(dy5Str)
+
+            val graham = parseDouble(findInGrid("VALOR JUSTO (GRAHAM)"))
+            val bazin = parseDouble(findInGrid("PREÇO TETO (BAZIN)"))
             
-            Log.d("Scraper", "Investidor10 Parsed -> P:$price, DY:$dy, DY5:$dy5")
+            Log.d("Scraper", "Investidor10 Parsed -> P:$price, DY:$dy, DY5:$dy5, G:$graham, B:$bazin")
 
             if (isFii) {
                 val vacancy = parsePercentage(findInGrid("VACÂNCIA") ?: findIndicatorValue(doc, "VACÂNCIA"))
@@ -111,7 +114,10 @@ class Investidor10ScraperRepository : AssetRepository {
                     netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,
                     cagrProfit5Years = 0.08, cagrRevenue5Years = 0.08,
                     payout = 0.5, roe = roe, pvp = pvp, pl = pl, dividendYield = dy, 
-                    debtToEquity = debtToEquity
+                    debtToEquity = debtToEquity,
+                    grahamPrice = graham,
+                    bazinPrice = bazin,
+                    valuationSource = "Investidor10"
                 ).apply {
                     val mocked = mutableSetOf<String>()
                     if (price == 0.0) mocked.add("Preço Atual")

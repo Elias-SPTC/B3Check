@@ -78,7 +78,8 @@ class FundamentusScraperRepository : AssetRepository {
                     netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,
                     cagrProfit5Years = 0.08, cagrRevenue5Years = 0.08,
                     payout = 0.5, roe = roe, pvp = pvp, pl = pl, dividendYield = dy,
-                    debtToEquity = debtToEquity
+                    debtToEquity = debtToEquity,
+                    valuationSource = "Fundamentus"
                 ).apply {
                     val mocked = mutableSetOf<String>()
                     if (price == 0.0) mocked.add("Preço Atual")

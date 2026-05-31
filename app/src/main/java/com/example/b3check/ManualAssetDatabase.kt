@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import com.google.gson.Gson
 
-class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 2) {
+class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 3) {
 
     private val gson = Gson()
 
@@ -77,6 +77,75 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
             db.delete("assets", "ticker = ?", arrayOf(ticker))
         } catch (e: Exception) {
             Log.e("ManualDB", "Erro ao deletar: ${e.message}")
+        }
+    }
+
+    fun getAllAssets(): List<AssetData> {
+        val list = mutableListOf<AssetData>()
+        try {
+            val db = readableDatabase
+            val cursor = db.query("assets", arrayOf("type", "json_data"), null, null, null, null, "ticker ASC")
+            while (cursor.moveToNext()) {
+                val type = cursor.getString(0)
+                val json = cursor.getString(1)
+                val asset = when (type) {
+                    "STOCK" -> gson.fromJson(json, AssetData.Stock::class.java)
+                    "FII" -> gson.fromJson(json, AssetData.Fii::class.java)
+                    "ETF" -> gson.fromJson(json, AssetData.Etf::class.java)
+                    "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
+                    else -> null
+                }
+                asset?.let { list.add(it) }
+            }
+            cursor.close()
+        } catch (e: Exception) {
+            Log.e("ManualDB", "Erro ao listar: ${e.message}")
+        }
+        return list
+    }
+
+    fun exportBackup(): String {
+        return try {
+            val list = mutableListOf<Map<String, String>>()
+            val db = readableDatabase
+            val cursor = db.query("assets", arrayOf("type", "json_data"), null, null, null, null, null)
+            while (cursor.moveToNext()) {
+                list.add(mapOf("type" to cursor.getString(0), "json" to cursor.getString(1)))
+            }
+            cursor.close()
+            gson.toJson(list)
+        } catch (e: Exception) { "" }
+    }
+
+    fun importBackup(json: String): Boolean {
+        return try {
+            val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+            val data: List<Map<String, String>> = gson.fromJson(json, typeToken)
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                data.forEach { item ->
+                    val type = item["type"]
+                    val jsonData = item["json"]
+                    if (type != null && jsonData != null) {
+                        val asset = when (type) {
+                            "STOCK" -> gson.fromJson(jsonData, AssetData.Stock::class.java)
+                            "FII" -> gson.fromJson(jsonData, AssetData.Fii::class.java)
+                            "ETF" -> gson.fromJson(jsonData, AssetData.Etf::class.java)
+                            "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
+                            else -> null
+                        }
+                        asset?.let { saveAsset(it) }
+                    }
+                }
+                db.setTransactionSuccessful()
+                true
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            Log.e("ManualDB", "Erro ao importar: ${e.message}")
+            false
         }
     }
 }

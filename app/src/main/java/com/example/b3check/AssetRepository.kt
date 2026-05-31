@@ -32,7 +32,8 @@ class MockAssetRepository : AssetRepository {
         lpa = 2.8, vpa = 15.0, dividendYield5Years = 0.05,
         paidDividendsLast5Years = true, netDebt = 500.0, ebitda = 1200.0,
         netMargin = 0.14, cagrProfit5Years = 0.12, cagrRevenue5Years = 0.09,
-        payout = 0.6, roe = 0.24, pvp = 1.15, pl = 12.0, dividendYield = 0.05, debtToEquity = 0.4
+        payout = 0.6, roe = 0.24, pvp = 1.15, pl = 12.0, dividendYield = 0.05, debtToEquity = 0.4,
+        grahamPrice = 45.0, bazinPrice = 50.0, valuationSource = "Simulação"
     )
 
     private fun getMockFii(t: String) = AssetData.Fii(

@@ -30,7 +30,10 @@ sealed class AssetData {
         val dividendYield: Double = 0.0,
         val debtToEquity: Double = 0.0,
         val baselIndex: Double = 0.0,
-        val defaultRate: Double = 0.0
+        val defaultRate: Double = 0.0,
+        val grahamPrice: Double = 0.0,
+        val bazinPrice: Double = 0.0,
+        val valuationSource: String = ""
     ) : AssetData()
 
     data class Fii(

@@ -88,6 +88,25 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                         data = existingData
                     }
 
+                    // Se o usuário selecionou um tipo diferente via RadioButton, força a mudança de tipo
+                    if (manualType != null && data != null) {
+                        val currentTypeLabel = when(data) {
+                            is AssetData.Stock -> "Ação"
+                            is AssetData.Fii -> "FII"
+                            is AssetData.Etf -> "ETF"
+                            is AssetData.Bdr -> "BDR"
+                        }
+                        if (currentTypeLabel != manualType) {
+                            Log.d("StockViewModel", "Forçando mudança de tipo: $currentTypeLabel -> $manualType")
+                            data = when(manualType) {
+                                "FII" -> AssetData.Fii(t, data!!.name, data!!.currentPrice, "FII")
+                                "ETF" -> AssetData.Etf(t, data!!.name, data!!.currentPrice, "ETF")
+                                "BDR" -> AssetData.Bdr(t, data!!.name, data!!.currentPrice, "BDR")
+                                else -> AssetData.Stock(t, data!!.name, data!!.currentPrice, "Ação")
+                            }
+                        }
+                    }
+
                     // Caso final: se mesmo após tudo ainda estiver nulo, cria um objeto vazio se houver tipo selecionado
                     if (data == null && manualType != null) {
                         data = when(manualType) {
@@ -156,6 +175,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             // Atualiza a UI com os novos dados e score recalculado
             val score = calculateScoreForAsset(data)
             _uiState.value = StockUiState.Success(data, score, isMockData = false)
+            loadAllAssets() // Atualiza lista global e recomendações
         }
     }
 
@@ -163,6 +183,45 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             db.deleteAsset(ticker)
             _uiState.value = StockUiState.Idle
+            loadAllAssets() // Recarrega lista
+        }
+    }
+
+    private val _allAssets = MutableStateFlow<List<AssetData>>(emptyList())
+    val allAssets: StateFlow<List<AssetData>> = _allAssets.asStateFlow()
+
+    private val _recommendations = MutableStateFlow<List<AssetData>>(emptyList())
+    val recommendations: StateFlow<List<AssetData>> = _recommendations.asStateFlow()
+
+    init {
+        loadAllAssets()
+    }
+
+    fun loadAllAssets() {
+        viewModelScope.launch {
+            val list = db.getAllAssets()
+            _allAssets.value = list
+            updateRecommendations(list)
+        }
+    }
+
+    private fun updateRecommendations(list: List<AssetData>) {
+        // Filtra e ordena para as 5 melhores opções (Score combinando BH e Div)
+        val recommended = list
+            .map { it to calculateScoreForAsset(it) }
+            .sortedByDescending { it.second }
+            .take(5)
+            .map { it.first }
+        _recommendations.value = recommended
+    }
+
+    fun exportBackup(): String = db.exportBackup()
+    
+    fun importBackup(json: String) {
+        viewModelScope.launch {
+            if (db.importBackup(json)) {
+                loadAllAssets()
+            }
         }
     }
 
