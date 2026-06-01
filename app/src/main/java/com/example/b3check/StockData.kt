@@ -8,6 +8,7 @@ sealed class AssetData {
     abstract val currentPrice: Double
     abstract val sector: String
     abstract val isInPortfolio: Boolean
+    abstract val sharesCount: Double
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet() // Para compatibilidade se necessário
@@ -38,7 +39,8 @@ sealed class AssetData {
         val grahamPrice: Double = 0.0,
         val bazinPrice: Double = 0.0,
         val valuationSource: String = "",
-        override val isInPortfolio: Boolean = false
+        override val isInPortfolio: Boolean = false,
+        override val sharesCount: Double = 0.0
     ) : AssetData()
 
     data class Fii(
@@ -60,7 +62,8 @@ sealed class AssetData {
         val managementFee: Double = 0.0,
         val propertyCount: Int = 1,
         val aum: Double = 0.0,
-        override val isInPortfolio: Boolean = false
+        override val isInPortfolio: Boolean = false,
+        override val sharesCount: Double = 0.0
     ) : AssetData()
 
     data class Etf(
@@ -75,7 +78,8 @@ sealed class AssetData {
         val aum: Double = 0.0,
         val numberOfHoldings: Int = 1,
         val isPassive: Boolean = true,
-        override val isInPortfolio: Boolean = false
+        override val isInPortfolio: Boolean = false,
+        override val sharesCount: Double = 0.0
     ) : AssetData()
 
     data class Bdr(
@@ -85,6 +89,7 @@ sealed class AssetData {
         override val sector: String,
         val dividendYield: Double = 0.0,
         val parity: String = "1:1",
-        override val isInPortfolio: Boolean = false
+        override val isInPortfolio: Boolean = false,
+        override val sharesCount: Double = 0.0
     ) : AssetData()
 }
