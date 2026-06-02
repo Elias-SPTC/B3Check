@@ -154,7 +154,16 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                             "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
                             else -> null
                         }
-                        asset?.let { saveAsset(it) }
+                        asset?.let {
+                            // Aplica a lógica de "Ativo Seguro" antes de salvar para evitar nulidades
+                            val safeAsset = when(it) {
+                                is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount)
+                                is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount)
+                                is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
+                                is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
+                            }
+                            saveAsset(safeAsset) 
+                        }
                     }
                 }
                 db.setTransactionSuccessful()
