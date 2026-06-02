@@ -103,7 +103,7 @@ fun MainContainer() {
                     selected = currentTab == 3,
                     onClick = { currentTab = 3 },
                     icon = { Icon(Icons.Default.Star, contentDescription = null) },
-                    label = { Text("Recomenda", fontSize = 10.sp) }
+                    label = { Text("Recomendadas", fontSize = 10.sp, maxLines = 1) }
                 )
                 NavigationBarItem(
                     selected = currentTab == 4,
@@ -130,6 +130,25 @@ fun MainContainer() {
 fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () -> Unit = {}) {
     val assets by viewModel.allAssets.collectAsState()
     val context = LocalContext.current
+    var tickerToDelete by remember { mutableStateOf<String?>(null) }
+
+    if (tickerToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { tickerToDelete = null },
+            title = { Text("Excluir Ativo") },
+            text = { Text("Tem certeza que deseja excluir o ativo $tickerToDelete?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.deleteAsset(tickerToDelete!!)
+                    tickerToDelete = null
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Excluir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { tickerToDelete = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
 
     val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
     val defaultBackupName = "$currentDate-B3Check.json"
@@ -186,17 +205,19 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                                 if (asset.isInPortfolio) {
                                     Surface(color = Color(0xFFE8F5E9), shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.padding(start = 8.dp)) {
-                                        Text("CARTEIRA", fontSize = 8.sp, color = Color(0xFF2E7D32), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
+                                        Text("CARTEIRA", fontSize = 9.sp, color = Color(0xFF1B5E20), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
-                            Text(asset.name, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                            Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, fontWeight = FontWeight.Normal)
                         }
-                        IconButton(onClick = { viewModel.deleteAsset(asset.ticker) }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color.Red, modifier = Modifier.size(16.dp))
+                        IconButton(onClick = { tickerToDelete = asset.ticker }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color.Red, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -222,12 +243,13 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
         } else {
             portfolio.forEach { (asset, percent) ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column {
-                            Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text(asset.sector, fontSize = 10.sp, color = Color.Gray)
+                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(formatBR(percent) + "%", fontWeight = FontWeight.Black, fontSize = 15.sp, color = Color(0xFF1976D2))
+                        Text(formatBR(percent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
                     }
                 }
             }
@@ -383,11 +405,12 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                 items(recs.withIndex().toList()) { (index, asset) ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp), fontSize = 15.sp)
+                            Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp), fontSize = 16.sp)
                             Column {
-                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                Text(asset.name, fontSize = 10.sp, maxLines = 1)
-                                Text("Nota: ${asset.sector}", fontSize = 10.sp, color = Color.Gray)
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                                Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -472,18 +495,23 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     var showSectorMenu by remember { mutableStateOf(false) }
     var showSubSectorMenu by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     var pendingType by remember { mutableStateOf("") }
+
 
     val stockClassification = mapOf(
         "Financeiro" to listOf("Bancos", "Seguradoras", "Serviços Financeiros", "Exploração de Imóveis"),
         "Utilidade Pública" to listOf("Energia Elétrica", "Água e Saneamento", "Gás"),
         "Materiais Básicos" to listOf("Mineração", "Siderurgia e Metalurgia", "Papel e Celulose", "Químicos"),
+        "Petróleo e Gás" to listOf("Extração e Refino", "Equipamentos e Serviços", "Biocombustíveis"),
+        "Telecomunicações" to listOf("Telefonia Fixa e Móvel"),
         "Consumo Cíclico" to listOf("Comércio", "Construção Civil", "Roupas", "Turismo", "Veículos"),
-        "Consumo Não Cíclico e Saúde" to listOf("Alimentos", "Bebidas", "Agropecuária", "Hospitais", "Laboratórios", "Farmácias", "Uso Pessoal e Limpeza")
+        "Consumo Não Cíclico e Saúde" to listOf("Alimentos", "Bebidas", "Agropecuária", "Hospitais", "Laboratórios", "Farmácias", "Uso Pessoal e Limpeza"),
+        "Bens Industriais" to listOf("Transporte e Logística", "Máquinas e Equipamentos", "Defesa e Aeroespacial")
     )
 
     val fiiClassification = mapOf(
-        "Tijolo" to listOf("Lajes Corporativas", "Logística / Industrial", "Shopping Centers", "Hotéis", "Hospitais", "Agências bancárias", "Fiagros"),
+        "Tijolo" to listOf("Lajes Corporativas", "Logística / Industrial", "Shopping Centers", "Hotéis", "Hospitais", "Agências bancárias", "Educacional", "Residencial", "Fiagros"),
         "Papel" to listOf("Recebíveis Imobiliários", "Fundos de Fundos (FOFs)"),
         "Híbridos" to listOf("Geral")
     )
@@ -526,6 +554,23 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Excluir Ativo") },
+            text = { Text("Tem certeza que deseja excluir este ativo?") },
+            confirmButton = {
+                Button(onClick = {
+                    onDelete(data)
+                    showDeleteConfirm = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Excluir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
             }
         )
     }
@@ -754,7 +799,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 onSave(updated)
             }, modifier = Modifier.weight(1f)) { Text("Salvar") }
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = { onDelete(data) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Deletar") }
+            Button(onClick = { showDeleteConfirm = true }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Deletar") }
         }
     }
 }

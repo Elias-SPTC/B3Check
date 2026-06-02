@@ -209,7 +209,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun calculateScoreForAsset(data: AssetData): Double {
+    fun calculateScoreForAsset(data: AssetData): Double {
         return when (data) {
             is AssetData.Stock -> calculateStockScore(data)
             is AssetData.Fii -> calculateFiiScore(data)
@@ -225,13 +225,17 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
         // --- Critérios de Setor (Perenidade e Estabilidade) ---
         when (data.sector) {
-            "Utilidade Pública" -> {
+            "Utilidade Pública", "Telecomunicações" -> {
                 score += 1.5
-                p.add("Setor Perene: Utilidade Pública (Demanda estável)")
+                p.add("Setor Perene: Alta previsibilidade e demanda estável")
             }
             "Consumo Não Cíclico e Saúde" -> {
                 score += 1.0
                 p.add("Setor Resiliente: Consumo Não Cíclico/Saúde")
+            }
+            "Petróleo e Gás" -> {
+                score += 0.5
+                p.add("Setor Estratégico: Petróleo, Gás e Biocombustíveis")
             }
             "Financeiro" -> {
                 if (data.subSector == "Seguradoras") {
