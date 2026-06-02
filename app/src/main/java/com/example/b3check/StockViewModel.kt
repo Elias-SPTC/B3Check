@@ -293,11 +293,13 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             c.add("DY atual baixo (Abaixo de 4%)")
         }
 
-        if (data.netMargin >= 0.12) {
-            score += 1.0
-            p.add("Boa Margem Líquida (> 12%)")
-        } else {
-            c.add("Margem Líquida abaixo de 12%")
+        if (data.subSector != "Bancos") {
+            if (data.netMargin >= 0.12) {
+                score += 1.0
+                p.add("Boa Margem Líquida (> 12%)")
+            } else {
+                c.add("Margem Líquida abaixo de 12%")
+            }
         }
 
         if (data.subSector == "Bancos") {

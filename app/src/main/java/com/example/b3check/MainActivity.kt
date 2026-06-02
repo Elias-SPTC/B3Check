@@ -664,8 +664,12 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("P/L", indicatorStates["pl"] ?: "", true, data.fieldSources?.get("pl")) { indicatorStates["pl"] = it }
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
             EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, data.fieldSources?.get("roe")) { indicatorStates["roe"] = it }
-            EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true, data.fieldSources?.get("ml")) { indicatorStates["ml"] = it }
-            EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true, data.fieldSources?.get("de")) { indicatorStates["de"] = it }
+            
+            if (subSectorState != "Bancos") {
+                EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true, data.fieldSources?.get("ml")) { indicatorStates["ml"] = it }
+                EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true, data.fieldSources?.get("de")) { indicatorStates["de"] = it }
+            }
+
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
