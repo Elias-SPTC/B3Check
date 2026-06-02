@@ -968,14 +968,30 @@ fun AssetDetails(data: AssetData) {
             DetailsRow("P/L", formatBR(data.pl))
             DetailsRow("P/VP", formatBR(data.pvp))
             DetailsRow("ROE", formatBR(data.roe * 100) + "%")
-            DetailsRow("Margem Líq", formatBR(data.netMargin * 100) + "%")
-            DetailsRow("Dív/Patrim", formatBR(data.debtToEquity))
+            
+            if (data.subSector != "Bancos") {
+                DetailsRow("Margem Líq", formatBR(data.netMargin * 100) + "%")
+                DetailsRow("Dív/Patrim", formatBR(data.debtToEquity))
+            } else {
+                DetailsRow("Índ. Basileia", formatBR(data.baselIndex))
+            }
         } else if (data is AssetData.Fii) {
+            val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis")
+            val isFoF = data.subSector.contains("FOFs")
+            val isShopping = data.subSector.contains("Shopping")
+
             DetailsRow("P/VP", formatBR(data.pvp))
             DetailsRow("DY 12m", formatBR(data.yield12m * 100) + "%")
-            DetailsRow("Vacância", formatBR(data.vacancy * 100) + "%", if (data.vacancy <= 0.05) Color(0xFF2E7D32) else Color.Red)
-            DetailsRow("WALT", formatBR(data.weightedLeaseTerm) + " anos")
-            DetailsRow("Imóveis", data.propertyCount.toString())
+            
+            if (!isPaper && !isFoF) {
+                DetailsRow("Vacância", formatBR(data.vacancy * 100) + "%", if (data.vacancy <= 0.05) Color(0xFF2E7D32) else Color.Red)
+            }
+            if (!isPaper && !isFoF && !isShopping) {
+                DetailsRow("WALT", formatBR(data.weightedLeaseTerm) + " anos")
+            }
+            if (!isPaper && !isFoF) {
+                DetailsRow("Imóveis", data.propertyCount.toString())
+            }
         } else if (data is AssetData.Etf) {
             DetailsRow("Taxa Adm", formatBR(data.adminFee * 100) + "%", if (data.adminFee <= 0.005) Color(0xFF2E7D32) else Color.Red)
             DetailsRow("Vol. Diário", "M R$ ${formatBR(data.avgDailyVolume / 1_000_000.0)}")

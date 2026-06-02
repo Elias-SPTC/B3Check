@@ -344,8 +344,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis") || data.subSector.contains("FOFs")
-        val isShopping = data.subSector.contains("Shopping")
+        val subSector = data.subSector ?: ""
+        val isPaper = data.sector == "Papel" || subSector.contains("Recebíveis") || subSector.contains("FOFs")
+        val isShopping = subSector.contains("Shopping")
 
         // --- Critérios de Setor e Subsetor ---
         when (data.sector) {
@@ -394,6 +395,8 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 p.add("P/VP ideal para Fundo de Papel")
             } else if (data.pvp > 1.05) {
                 c.add("Ágio perigoso para Fundo de Papel")
+            } else if (data.pvp < 0.95 && data.pvp > 0) {
+                c.add("Desconto excessivo (Pode indicar risco no crédito)")
             }
         } else {
             if (data.pvp in 0.92..1.03) {
@@ -427,26 +430,31 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // --- Diversificação de Inquilinos (Novo Sistema) ---
+        val tenantLabel = when {
+            isPaper -> "Nota Devedores"
+            subSector.contains("FOFs") -> "Nota Carteira"
+            else -> "Nota Inquilino"
+        }
+        
         when (data.tenantScore) {
             1 -> {
-                p.add("Nota Inquilino 1: Monoinquilino (Risco Altíssimo)")
-                // Sem bônus
+                p.add("$tenantLabel 1: Monoinquilino / Concentrado (Risco Altíssimo)")
             }
             2 -> {
                 score += 0.4
-                p.add("Nota Inquilino 2: Baixa Diversificação (Risco Alto)")
+                p.add("$tenantLabel 2: Baixa Diversificação (Risco Alto)")
             }
             3 -> {
                 score += 0.8
-                p.add("Nota Inquilino 3: Diversificação Moderada (Risco Médio)")
+                p.add("$tenantLabel 3: Diversificação Moderada (Risco Médio)")
             }
             4 -> {
                 score += 1.2
-                p.add("Nota Inquilino 4: Boa Diversificação (Risco Baixo)")
+                p.add("$tenantLabel 4: Boa Diversificação (Risco Baixo)")
             }
             5 -> {
                 score += 2.0
-                p.add("Nota Inquilino 5: Excelente/Pulverizado (Risco Mínimo)")
+                p.add("$tenantLabel 5: Excelente/Pulverizado (Risco Mínimo)")
             }
         }
 
@@ -455,17 +463,23 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             if (data.weightedLeaseTerm >= 4.0) {
                 score += 1.0
                 p.add("Contratos de longo prazo (WALT > 4 anos)")
+            } else if (data.weightedLeaseTerm > 0) {
+                c.add("WALT baixo (Contratos vencendo em breve)")
             }
         }
 
         if (data.yield12m >= 0.09) {
             score += 2.0
             p.add("Dividend Yield atrativo (> 9%)")
+        } else if (data.yield12m > 0) {
+            c.add("Dividend Yield abaixo do ideal (< 9%)")
         }
         
-        if (data.managementFee <= 0.01) {
+        if (data.managementFee <= 0.01 && data.managementFee > 0) {
             score += 0.5
             p.add("Taxa de gestão competitiva")
+        } else if (data.managementFee > 0.015) {
+            c.add("Taxa de gestão elevada")
         }
 
         data.pros = p.take(10)
@@ -478,7 +492,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        if (data.adminFee <= 0.003) {
+        if (data.adminFee <= 0.003 && data.adminFee > 0) {
             score += 4.0
             p.add("Taxa de Administração competitiva")
         } else if (data.adminFee > 0.007) {
@@ -488,18 +502,22 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         if (data.avgDailyVolume >= 2_000_000) {
             score += 1.5
             p.add("Liquidez robusta para negociação")
-        } else {
+        } else if (data.avgDailyVolume > 0) {
             c.add("Baixa liquidez diária")
         }
 
-        if (data.trackingError <= 0.005) {
+        if (data.trackingError <= 0.005 && data.trackingError > 0) {
             score += 2.0
             p.add("Alta fidelidade ao índice (Baixo Tracking Error)")
+        } else if (data.trackingError > 0.015) {
+            c.add("Tracking Error elevado (Fidelidade baixa)")
         }
 
         if (data.numberOfHoldings >= 50) {
             score += 1.0
             p.add("Boa diversificação interna")
+        } else if (data.numberOfHoldings > 0) {
+            c.add("Carteira de ativos restrita")
         }
 
         data.pros = p.take(10)
@@ -514,7 +532,9 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
         if (data.dividendYield >= 0.03) {
             score += 5.0
-            p.add("Dividend Yield aceitável para BDR")
+            p.add("Dividend Yield atrativo para BDR")
+        } else if (data.dividendYield > 0) {
+            c.add("Dividend Yield baixo")
         }
 
         p.add("Exposição ao mercado internacional")
