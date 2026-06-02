@@ -391,8 +391,8 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
     val recs by viewModel.recommendations.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Top 5 para Pesquisa", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
-        Text("Ativos na Watchlist com melhores fundamentos", fontSize = 12.sp, color = Color.Gray)
+        Text("Ativos em Pesquisa", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
+        Text("Ativos na Watchlist ordenados por qualidade", fontSize = 12.sp, color = Color.Gray)
         
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -586,6 +586,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["payout"] = formatBR(data.payout * 100)
             indicatorStates["basel"] = formatBR(data.baselIndex)
             indicatorStates["graham"] = formatBR(data.grahamPrice); indicatorStates["bazin"] = formatBR(data.bazinPrice)
+            indicatorStates["paidDiv"] = if (data.paidDividendsLast5Years) "Sim" else "Não"
             indicatorStates["valSource"] = data.valuationSource
         } else if (data is AssetData.Fii) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
@@ -594,6 +595,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["prop"] = data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
             indicatorStates["mType"] = data.managementType
+            indicatorStates["multiP"] = if (data.multiProperty) "Sim" else "Não"
+            indicatorStates["multiT"] = if (data.multiTenant) "Sim" else "Não"
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError)
@@ -719,6 +722,15 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
             
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Dividendos 5a", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Row(modifier = Modifier.weight(1.8f)) {
+                    val current = indicatorStates["paidDiv"] ?: "Sim"
+                    TextButton(onClick = { indicatorStates["paidDiv"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
+                    TextButton(onClick = { indicatorStates["paidDiv"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+                }
+            }
+
             if (subSectorState == "Bancos") {
                 EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
             }
@@ -740,6 +752,22 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             
             if (!isPaper) {
                 EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Multi-Imóvel", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Row(modifier = Modifier.weight(1.8f)) {
+                        val current = indicatorStates["multiP"] ?: "Sim"
+                        TextButton(onClick = { indicatorStates["multiP"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
+                        TextButton(onClick = { indicatorStates["multiP"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Multi-Inquilino", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Row(modifier = Modifier.weight(1.8f)) {
+                        val current = indicatorStates["multiT"] ?: "Sim"
+                        TextButton(onClick = { indicatorStates["multiT"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
+                        TextButton(onClick = { indicatorStates["multiT"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+                    }
+                }
             }
             
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
@@ -770,6 +798,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"),
                         roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
                         dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
+                        paidDividendsLast5Years = indicatorStates["paidDiv"] == "Sim",
                         netMargin = parseBR(indicatorStates["ml"] ?: "0") / 100.0, debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
                         pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"),
                         baselIndex = parseBR(indicatorStates["basel"] ?: "0"),
@@ -780,6 +809,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         sharesCount = sharesNum,
                         pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
                         yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
+                        multiProperty = indicatorStates["multiP"] == "Sim", multiTenant = indicatorStates["multiT"] == "Sim",
                         propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
                         managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
                         fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
@@ -889,8 +919,15 @@ fun DetailsRow(label: String, value: String, valueColor: Color = Color.Unspecifi
 
 @Composable
 fun ProsConsSection(pros: List<String>, cons: List<String>) {
-    Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Column(modifier = Modifier.weight(1f)) { Text("Prós", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold); pros.forEach { Text("• $it", fontSize = 11.sp) } }
-        Column(modifier = Modifier.weight(1f)) { Text("Contras", color = Color.Red, fontWeight = FontWeight.Bold); cons.forEach { Text("• $it", fontSize = 11.sp) } }
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        if (pros.isNotEmpty()) {
+            Text("Prós", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            pros.forEach { Text("• $it", fontSize = 12.sp, modifier = Modifier.padding(vertical = 1.dp)) }
+        }
+        if (cons.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Contras", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            cons.forEach { Text("• $it", fontSize = 12.sp, modifier = Modifier.padding(vertical = 1.dp)) }
+        }
     }
 }

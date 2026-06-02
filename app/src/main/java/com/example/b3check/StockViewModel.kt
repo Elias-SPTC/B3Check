@@ -179,7 +179,6 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             .filter { !it.isInPortfolio }
             .map { it to calculateScoreForAsset(it) }
             .sortedByDescending { it.second }
-            .take(5)
             .map { it.first }
         _recommendations.value = recommended
     }
@@ -301,7 +300,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             if (data.netMargin >= 0.12) {
                 score += 1.0
                 p.add("Boa Margem Líquida (> 12%)")
-            } else {
+            } else if (data.netMargin > 0) {
                 c.add("Margem Líquida abaixo de 12%")
             }
         }
@@ -310,7 +309,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             if (data.baselIndex >= 0.14) {
                 score += 2.0
                 p.add("Basileia robusto (Segurança)")
-            } else {
+            } else if (data.baselIndex > 0) {
                 c.add("Índice de Basileia abaixo de 14%")
             }
         } else {
