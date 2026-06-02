@@ -677,25 +677,26 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
         } else if (data is AssetData.Fii) {
-            val isPaperOrFoF = sectorState == "Papel"
+            val isPaper = sectorState == "Papel" || subSectorState.contains("Recebíveis") || subSectorState.contains("FOFs")
+            val isShopping = subSectorState.contains("Shopping")
             
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
             
-            if (!isPaperOrFoF) {
+            if (!isPaper) {
                 EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, data.fieldSources?.get("vac")) { indicatorStates["vac"] = it }
             }
             
             EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources?.get("y12")) { indicatorStates["y12"] = it }
             EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources?.get("y5")) { indicatorStates["y5"] = it }
             
-            if (!isPaperOrFoF) {
+            if (!isPaper) {
                 EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
             }
             
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             
-            if (!isPaperOrFoF) {
+            if (!isPaper && !isShopping) {
                 EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
             }
 

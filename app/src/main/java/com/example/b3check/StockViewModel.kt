@@ -341,7 +341,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        // --- Critérios de Setor e Subsetor (Perenidade e Risco) ---
+        val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis") || data.subSector.contains("FOFs")
+        val isShopping = data.subSector.contains("Shopping")
+
+        // --- Critérios de Setor e Subsetor ---
         when (data.sector) {
             "Tijolo" -> {
                 score += 0.5
@@ -358,10 +361,6 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                     "Agências bancárias", "Hospitais" -> {
                         score += 1.0
                         p.add("Contratos de Longo Prazo: ${data.subSector}")
-                    }
-                    "Hotéis" -> {
-                        score -= 0.5
-                        c.add("Risco cíclico elevado: Hotéis")
                     }
                 }
             }
@@ -385,43 +384,51 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             p.add("DY Histórico sólido (> 8% nos últimos 5 anos)")
         }
 
-        if (data.pvp in 0.92..1.03) {
-            score += 2.0
-            p.add("P/VP em zona de equilíbrio (Próximo a 1.0)")
-        } else if (data.pvp < 0.92 && data.pvp > 0) {
-            score += 1.0
-            p.add("Ativo com desconto patrimonial")
-        } else if (data.pvp > 1.1) {
-            c.add("Ágio elevado (P/VP > 1.10)")
-        } else if (data.pvp <= 0) {
-            c.add("P/VP não disponível ou negativo")
+        // P/VP é mais crítico em Papel (deve estar próximo a 1.0)
+        if (isPaper) {
+            if (data.pvp in 0.98..1.02) {
+                score += 3.0
+                p.add("P/VP ideal para Fundo de Papel")
+            } else if (data.pvp > 1.05) {
+                c.add("Ágio perigoso para Fundo de Papel")
+            }
+        } else {
+            if (data.pvp in 0.92..1.03) {
+                score += 3.0
+                p.add("P/VP em zona de equilíbrio")
+            } else if (data.pvp < 0.92 && data.pvp > 0) {
+                score += 1.5
+                p.add("Ativo com desconto patrimonial")
+            }
         }
 
-        if (data.vacancy <= 0.05) {
-            score += 1.5
-            p.add("Ocupação excelente (Vacância < 5%)")
-        } else if (data.vacancy > 0.15) {
-            score -= 1.0
-            c.add("Risco de vacância elevado (> 15%)")
+        // Vacância não se aplica a Papel
+        if (!isPaper) {
+            if (data.vacancy <= 0.05) {
+                score += 1.5
+                p.add("Ocupação excelente (Vacância < 5%)")
+            } else if (data.vacancy > 0.15) {
+                score -= 1.0
+                c.add("Risco de vacância elevado (> 15%)")
+            }
         }
 
         if (data.multiProperty && data.multiTenant) {
             score += 1.0
             p.add("Alta diversificação (Multi-imóvel/inquilino)")
-        } else if (data.sector == "Tijolo") {
-            c.add("Risco de concentração (Mono-imóvel ou Mono-inquilino)")
         }
 
-        if (data.weightedLeaseTerm >= 4.0) {
-            score += 1.0
-            p.add("Contratos de longo prazo (WALT > 4 anos)")
+        // WALT não é métrica padrão de Shoppings
+        if (!isShopping && !isPaper) {
+            if (data.weightedLeaseTerm >= 4.0) {
+                score += 1.0
+                p.add("Contratos de longo prazo (WALT > 4 anos)")
+            }
         }
 
         if (data.yield12m >= 0.09) {
             score += 2.0
             p.add("Dividend Yield atrativo (> 9%)")
-        } else if (data.yield12m < 0.06) {
-            c.add("Dividend Yield baixo (< 6%)")
         }
         
         if (data.managementFee <= 0.01) {
