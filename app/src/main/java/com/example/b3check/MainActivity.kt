@@ -214,7 +214,7 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                                     }
                                 }
                             }
-                            Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, fontWeight = FontWeight.Normal)
+                            Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, fontWeight = FontWeight.Normal)
                         }
                         IconButton(onClick = { tickerToDelete = asset.ticker }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color.Red, modifier = Modifier.size(20.dp))
@@ -228,28 +228,37 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
 
 @Composable
 fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
-    val portfolio by viewModel.portfolioAllocation.collectAsState()
+    val portfolioAllocation by viewModel.portfolioAllocation.collectAsState()
+    val allAssets by viewModel.allAssets.collectAsState()
+    val portfolioAssets = allAssets.filter { it.isInPortfolio }
+    val totalCurrentValue = portfolioAssets.sumOf { it.sharesCount * it.currentPrice }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Equilíbrio da Carteira", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
-        Text("Alocação sugerida baseada na qualidade (Nota)", fontSize = 12.sp, color = Color.Gray)
+        Text("Comparativo entre alocação atual e ideal (por Nota)", fontSize = 12.sp, color = Color.Gray)
         
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (portfolio.isEmpty()) {
+        if (portfolioAllocation.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Marque ativos como 'Já possuo na carteira' no editor manual.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = Color.Gray)
             }
         } else {
-            portfolio.forEach { (asset, percent) ->
+            portfolioAllocation.forEach { (asset, idealPercent) ->
+                val currentVal = asset.sharesCount * asset.currentPrice
+                val currentPercent = if (totalCurrentValue > 0) (currentVal / totalCurrentValue) * 100.0 else 0.0
+
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                            Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
-                        Text(formatBR(percent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Ideal: " + formatBR(idealPercent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
+                            Text("Atual: " + formatBR(currentPercent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
+                        }
                     }
                 }
             }
@@ -372,11 +381,30 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
-                val total = parseBR(investAmount)
-                if (total > 0) {
+                val totalAporte = parseBR(investAmount)
+                if (totalAporte > 0) {
+                    val currentTotalValue = portfolio.sumOf { it.sharesCount * it.currentPrice }
+                    val targetTotalValue = currentTotalValue + totalAporte
+                    
+                    val gaps = portfolio.map { asset ->
+                        val idealPercent = allocation.find { it.first.ticker == asset.ticker }?.second ?: 0.0
+                        val targetValue = targetTotalValue * (idealPercent / 100.0)
+                        val currentValue = asset.sharesCount * asset.currentPrice
+                        asset.ticker to (targetValue - currentValue).coerceAtLeast(0.0)
+                    }
+                    
+                    val totalGap = gaps.sumOf { it.second }
+                    
                     investSuggestions.clear()
-                    allocation.forEach { (asset, percent) ->
-                        investSuggestions[asset.ticker] = total * (percent / 100.0)
+                    if (totalGap > 0) {
+                        gaps.forEach { (ticker, gap) ->
+                            investSuggestions[ticker] = totalAporte * (gap / totalGap)
+                        }
+                    } else {
+                        // Fallback caso todos estejam acima do ideal (distribui por peso direto)
+                        allocation.forEach { (asset, percent) ->
+                            investSuggestions[asset.ticker] = totalAporte * (percent / 100.0)
+                        }
                     }
                 }
             }) {
@@ -391,7 +419,7 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
     val recs by viewModel.recommendations.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Ativos em Pesquisa", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
+        Text("Recomendadas", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
         Text("Ativos na Watchlist ordenados por qualidade", fontSize = 12.sp, color = Color.Gray)
         
         Spacer(modifier = Modifier.height(16.dp))
@@ -408,9 +436,9 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                             Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp), fontSize = 16.sp)
                             Column {
                                 Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                                 Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                                Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }
