@@ -223,6 +223,31 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
+        // --- Critérios de Setor (Perenidade e Estabilidade) ---
+        when (data.sector) {
+            "Utilidade Pública" -> {
+                score += 1.5
+                p.add("Setor Perene: Utilidade Pública (Demanda estável)")
+            }
+            "Consumo Não Cíclico e Saúde" -> {
+                score += 1.0
+                p.add("Setor Resiliente: Consumo Não Cíclico/Saúde")
+            }
+            "Financeiro" -> {
+                if (data.subSector == "Seguradoras") {
+                    score += 0.5
+                    p.add("Subsetor Estável: Seguradoras")
+                }
+            }
+            "Consumo Cíclico" -> {
+                if (data.debtToEquity > 0.8) {
+                    score -= 1.0
+                    c.add("Risco Cíclico: Alavancagem alta em setor sensível")
+                }
+            }
+        }
+
+        // --- Indicadores Quantitativos ---
         if (data.dividendYield5Years >= 0.06) {
             score += 1.0
             p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
@@ -269,22 +294,22 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (data.netMargin >= 0.12) {
-            score += 1.5
+            score += 1.0
             p.add("Boa Margem Líquida (> 12%)")
         } else {
             c.add("Margem Líquida abaixo de 12%")
         }
 
-        if (data.sector == "Bancário") {
+        if (data.subSector == "Bancos") {
             if (data.baselIndex >= 0.14) {
-                score += 2.5
+                score += 2.0
                 p.add("Basileia robusto (Segurança)")
             } else {
                 c.add("Índice de Basileia abaixo de 14%")
             }
         } else {
             if (data.debtToEquity <= 0.8) {
-                score += 2.5
+                score += 2.0
                 p.add("Baixa Dívida/Patrimônio (Saudável)")
             } else if (data.debtToEquity > 1.2) {
                 score -= 1.0
@@ -316,6 +341,40 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
+        // --- Critérios de Setor e Subsetor (Perenidade e Risco) ---
+        when (data.sector) {
+            "Tijolo" -> {
+                score += 0.5
+                p.add("Ativo Real: Fundo de Tijolo")
+                when (data.subSector) {
+                    "Logística / Industrial" -> {
+                        score += 0.5
+                        p.add("Subsetor Perene: Logística (Contratos atípicos)")
+                    }
+                    "Shopping Centers" -> {
+                        score += 0.5
+                        p.add("Subsetor Resiliente: Shopping Centers")
+                    }
+                    "Agências bancárias", "Hospitais" -> {
+                        score += 1.0
+                        p.add("Contratos de Longo Prazo: ${data.subSector}")
+                    }
+                    "Hotéis" -> {
+                        score -= 0.5
+                        c.add("Risco cíclico elevado: Hotéis")
+                    }
+                }
+            }
+            "Papel" -> {
+                score += 0.5
+                p.add("Fundo de Papel (Renda Fixa Imobiliária)")
+            }
+            "Híbridos" -> {
+                score += 1.0
+                p.add("Diversificação de estratégia (Híbrido)")
+            }
+        }
+
         if (data.managementType.contains("Ativa", ignoreCase = true)) {
             score += 0.5
             p.add("Gestão Ativa (Potencial de alpha)")
@@ -327,10 +386,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (data.pvp in 0.92..1.03) {
-            score += 3.0
+            score += 2.0
             p.add("P/VP em zona de equilíbrio (Próximo a 1.0)")
         } else if (data.pvp < 0.92 && data.pvp > 0) {
-            score += 1.5
+            score += 1.0
             p.add("Ativo com desconto patrimonial")
         } else if (data.pvp > 1.1) {
             c.add("Ágio elevado (P/VP > 1.10)")
@@ -344,14 +403,12 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         } else if (data.vacancy > 0.15) {
             score -= 1.0
             c.add("Risco de vacância elevado (> 15%)")
-        } else {
-            c.add("Vacância moderada")
         }
 
         if (data.multiProperty && data.multiTenant) {
-            score += 1.5
+            score += 1.0
             p.add("Alta diversificação (Multi-imóvel/inquilino)")
-        } else {
+        } else if (data.sector == "Tijolo") {
             c.add("Risco de concentração (Mono-imóvel ou Mono-inquilino)")
         }
 
@@ -368,7 +425,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         }
         
         if (data.managementFee <= 0.01) {
-            score += 1.0
+            score += 0.5
             p.add("Taxa de gestão competitiva")
         }
 

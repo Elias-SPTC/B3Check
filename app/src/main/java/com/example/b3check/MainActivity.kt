@@ -39,6 +39,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -182,24 +183,20 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                         onAssetClick()
                     }
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(asset.ticker, fontWeight = FontWeight.Bold)
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 if (asset.isInPortfolio) {
-                                    Surface(
-                                        color = Color(0xFFE8F5E9),
-                                        shape = MaterialTheme.shapes.extraSmall,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    ) {
-                                        Text("CARTEIRA", fontSize = 9.sp, color = Color(0xFF2E7D32), modifier = Modifier.padding(horizontal = 4.dp))
+                                    Surface(color = Color(0xFFE8F5E9), shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.padding(start = 8.dp)) {
+                                        Text("CARTEIRA", fontSize = 8.sp, color = Color(0xFF2E7D32), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
-                            Text(asset.name, fontSize = 12.sp, color = Color.Gray)
+                            Text(asset.name, fontSize = 10.sp, color = Color.Gray, maxLines = 1)
                         }
-                        IconButton(onClick = { viewModel.deleteAsset(asset.ticker) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color.Red)
+                        IconButton(onClick = { viewModel.deleteAsset(asset.ticker) }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = Color.Red, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
@@ -225,12 +222,12 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
         } else {
             portfolio.forEach { (asset, percent) ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text(asset.ticker, fontWeight = FontWeight.Bold)
+                            Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             Text(asset.sector, fontSize = 10.sp, color = Color.Gray)
                         }
-                        Text(formatBR(percent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
+                        Text(formatBR(percent) + "%", fontWeight = FontWeight.Black, fontSize = 15.sp, color = Color(0xFF1976D2))
                     }
                 }
             }
@@ -255,13 +252,13 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(16.dp))
 
         // Cabeçalho da Tabela
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Ticker", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-            Text("Cotas", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-            Text("Preço", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-            Text("Aplicado", modifier = Modifier.weight(1.9f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-            Text("% Rec", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-            Text("Aportes", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Ticker", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Text("Cotas", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("Preço", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("Aplicado", modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("%", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("Aportes", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
         }
 
         HorizontalDivider()
@@ -279,8 +276,8 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                 val cotasText = editStates.getOrPut(cKey) { formatBR(asset.sharesCount, true) }
                 val precoText = editStates.getOrPut(pKey) { formatBR(asset.currentPrice, true) }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(asset.ticker, modifier = Modifier.weight(1.1f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(asset.ticker, modifier = Modifier.weight(1.2f), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     
                     // Cotas Editável
                     BasicTextField(
@@ -296,10 +293,10 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                             }
                             viewModel.saveManualAsset(updated)
                         },
-                        modifier = Modifier.weight(1.3f).padding(horizontal = 2.dp),
-                        textStyle = TextStyle(fontSize = 11.sp, color = if(isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF1A237E)),
+                        modifier = Modifier.weight(1.5f).padding(horizontal = 2.dp),
+                        textStyle = TextStyle(fontSize = 13.sp, color = if(isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF1A237E), fontWeight = FontWeight.Medium, textAlign = TextAlign.End),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        decorationBox = { inner -> Box(modifier = Modifier.padding(2.dp)) { inner() } }
+                        decorationBox = { inner -> Box(modifier = Modifier.padding(vertical = 2.dp)) { inner() } }
                     )
 
                     // Preço Editável
@@ -316,27 +313,27 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                             }
                             viewModel.saveManualAsset(updated)
                         },
-                        modifier = Modifier.weight(1.3f).padding(horizontal = 2.dp),
-                        textStyle = TextStyle(fontSize = 11.sp, color = if(isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF1A237E)),
+                        modifier = Modifier.weight(1.2f).padding(horizontal = 2.dp),
+                        textStyle = TextStyle(fontSize = 13.sp, color = if(isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF1A237E), fontWeight = FontWeight.Medium, textAlign = TextAlign.End),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        decorationBox = { inner -> Box(modifier = Modifier.padding(2.dp)) { inner() } }
+                        decorationBox = { inner -> Box(modifier = Modifier.padding(vertical = 2.dp)) { inner() } }
                     )
 
-                    Text(formatBR(applied), modifier = Modifier.weight(1.9f), fontSize = 11.sp)
-                    Text(formatBR(recPercent) + "%", modifier = Modifier.weight(0.8f), fontSize = 10.sp)
-                    Text(formatBR(suggest), modifier = Modifier.weight(1.8f), fontSize = 11.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                    Text(formatBR(applied), modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontSize = 12.sp, textAlign = TextAlign.End)
+                    Text(formatBR(recPercent) + "%", modifier = Modifier.weight(1.0f), fontSize = 11.sp, textAlign = TextAlign.End)
+                    Text(formatBR(suggest), modifier = Modifier.weight(1.8f), fontSize = 13.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                 }
             }
 
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 val totalApplied = portfolio.sumOf { it.sharesCount * it.currentPrice }
                 val totalSuggest = investSuggestions.values.sum()
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    Text("TOTAL", modifier = Modifier.weight(3.7f), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Text(formatBR(totalApplied), modifier = Modifier.weight(1.9f), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                    Text("", modifier = Modifier.weight(0.8f))
-                    Text(formatBR(totalSuggest), modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF2E7D32))
+                    Text("TOTAL", modifier = Modifier.weight(3.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(formatBR(totalApplied), modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+                    Text("", modifier = Modifier.weight(1.0f))
+                    Text(formatBR(totalSuggest), modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2E7D32), textAlign = TextAlign.End)
                 }
             }
         }
@@ -385,12 +382,12 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
             LazyColumn {
                 items(recs.withIndex().toList()) { (index, asset) ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp))
+                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp), fontSize = 15.sp)
                             Column {
-                                Text(asset.ticker, fontWeight = FontWeight.Bold)
-                                Text(asset.name, fontSize = 11.sp)
-                                Text("Nota: ${asset.sector}", fontSize = 10.sp, color = Color.Gray) // Exemplo simples
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text(asset.name, fontSize = 10.sp, maxLines = 1)
+                                Text("Nota: ${asset.sector}", fontSize = 10.sp, color = Color.Gray)
                             }
                         }
                     }
@@ -464,32 +461,34 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
 
 @Composable
 fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, onAnalyze: (AssetData) -> Unit, onDelete: (AssetData) -> Unit) {
-    var nameState by remember(data) { mutableStateOf(data.name) }
-    var priceState by remember(data) { mutableStateOf(data.currentPrice.toString()) }
-    var sectorState by remember(data) { mutableStateOf(if (data.sector == "FII" || data.sector == "Ação") "" else data.sector) }
-    var inPortfolioState by remember(data) { mutableStateOf(data.isInPortfolio) }
-    val indicatorStates = remember(data) { mutableStateMapOf<String, String>() }
+    var nameState by remember(data.ticker) { mutableStateOf(data.name) }
+    var priceState by remember(data.ticker) { mutableStateOf(formatBR(data.currentPrice, true)) }
+    var sectorState by remember(data.ticker) { mutableStateOf(data.sector ?: "") }
+    var subSectorState by remember(data.ticker) { mutableStateOf(data.subSector ?: "") }
+    var inPortfolioState by remember(data.ticker) { mutableStateOf(data.isInPortfolio) }
+    val indicatorStates = remember(data.ticker) { mutableStateMapOf<String, String>() }
     
-        var showTypeMenu by remember { mutableStateOf(false) }
-        var showSectorMenu by remember { mutableStateOf(false) }
-        var showFiiTypeMenu by remember { mutableStateOf(false) }
-        var showConfirmDialog by remember { mutableStateOf(false) }
-        var pendingType by remember { mutableStateOf("") }
+    var showTypeMenu by remember { mutableStateOf(false) }
+    var showSectorMenu by remember { mutableStateOf(false) }
+    var showSubSectorMenu by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingType by remember { mutableStateOf("") }
 
-        val sectors = listOf(
-            "Bancário", "Financeiro", "Energia Elétrica", "Saneamento", "Seguros",
-            "Petróleo e Gás", "Mineração e Siderurgia", "Varejo", 
-            "Tecnologia", "Saúde", "Construção", "Agronegócio", 
-            "Transportes", "Holdings", "Outros"
-        )
+    val stockClassification = mapOf(
+        "Financeiro" to listOf("Bancos", "Seguradoras", "Serviços Financeiros", "Exploração de Imóveis"),
+        "Utilidade Pública" to listOf("Energia Elétrica", "Água e Saneamento", "Gás"),
+        "Materiais Básicos" to listOf("Mineração", "Siderurgia e Metalurgia", "Papel e Celulose", "Químicos"),
+        "Consumo Cíclico" to listOf("Comércio", "Construção Civil", "Roupas", "Turismo", "Veículos"),
+        "Consumo Não Cíclico e Saúde" to listOf("Alimentos", "Bebidas", "Agropecuária", "Hospitais", "Laboratórios", "Farmácias", "Uso Pessoal e Limpeza")
+    )
 
-        val fiiTypes = listOf(
-            "Tijolo (Geral)", "Lajes Corporativas", "Logística", 
-            "Shoppings", "Papel (Recebíveis)", "Híbrido", 
-            "Fundo de Fundos (FoF)", "Fiagro", "Outros"
-        )
+    val fiiClassification = mapOf(
+        "Tijolo" to listOf("Lajes Corporativas", "Logística / Industrial", "Shopping Centers", "Hotéis", "Hospitais", "Agências bancárias", "Fiagros"),
+        "Papel" to listOf("Recebíveis Imobiliários", "Fundos de Fundos (FOFs)"),
+        "Híbridos" to listOf("Geral")
+    )
 
-        val assetTypes = listOf("Ação", "FII", "ETF", "BDR")
+    val assetTypes = listOf("Ação", "FII", "ETF", "BDR")
     val currentTypeLabel = when (data) {
         is AssetData.Stock -> "Ação"
         is AssetData.Fii -> "FII"
@@ -501,11 +500,15 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         val t = data.ticker
         val n = nameState
         val p = parseBR(priceState)
+        val s = sectorState
+        val ss = subSectorState
+        val shares = parseBR(indicatorStates["cotas"] ?: "0")
+        
         val updated = when (newType) {
-            "FII" -> AssetData.Fii(t, n, p, "FII", isInPortfolio = inPortfolioState)
-            "ETF" -> AssetData.Etf(t, n, p, "ETF", isInPortfolio = inPortfolioState)
-            "BDR" -> AssetData.Bdr(t, n, p, "BDR", isInPortfolio = inPortfolioState)
-            else -> AssetData.Stock(t, n, p, "Ação", isInPortfolio = inPortfolioState)
+            "FII" -> AssetData.Fii(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares)
+            "ETF" -> AssetData.Etf(t, n, p, "ETF", "ETF", isInPortfolio = inPortfolioState, sharesCount = shares)
+            "BDR" -> AssetData.Bdr(t, n, p, "BDR", "BDR", isInPortfolio = inPortfolioState, sharesCount = shares)
+            else -> AssetData.Stock(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares)
         }
         onSave(updated)
     }
@@ -527,7 +530,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         )
     }
 
-    LaunchedEffect(data) {
+    LaunchedEffect(data.ticker) {
+        indicatorStates.clear()
         if (data is AssetData.Stock) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["lpa"] = formatBR(data.lpa); indicatorStates["vpa"] = formatBR(data.vpa)
@@ -544,7 +548,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["y12"] = formatBR(data.yield12m * 100); indicatorStates["y5"] = formatBR(data.avgYield5Years * 100)
             indicatorStates["prop"] = data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
-            indicatorStates["fType"] = data.fundType; indicatorStates["mType"] = data.managementType
+            indicatorStates["mType"] = data.managementType
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError)
@@ -591,35 +595,68 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             }
         }
 
-        EditRow("Nome", nameState, source = data.fieldSources?.get("name")) { nameState = it }
-        EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
-        EditRow("Cotas", indicatorStates["cotas"] ?: "", true) { indicatorStates["cotas"] = it }
-
-
-        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Segmento", modifier = Modifier.weight(1f), fontSize = 12.sp)
-            Box(modifier = Modifier.weight(1.8f)) {
-                OutlinedButton(
-                    onClick = { showSectorMenu = true },
-                    modifier = Modifier.fillMaxWidth().height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    shape = MaterialTheme.shapes.extraSmall
-                ) {
-                    Text(if (sectorState.isBlank()) "Selecionar" else sectorState, fontSize = 13.sp)
+        if (data is AssetData.Stock || data is AssetData.Fii) {
+            val currentClassification = if (data is AssetData.Stock) stockClassification else fiiClassification
+            
+            // Menu de Setor
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Setor", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Box(modifier = Modifier.weight(1.8f)) {
+                    OutlinedButton(
+                        onClick = { showSectorMenu = true },
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        shape = MaterialTheme.shapes.extraSmall
+                    ) {
+                        Text(if (sectorState.isNullOrBlank()) "Selecionar" else sectorState, fontSize = 13.sp)
+                    }
+                    DropdownMenu(expanded = showSectorMenu, onDismissRequest = { showSectorMenu = false }) {
+                        currentClassification.keys.forEach { sector ->
+                            DropdownMenuItem(
+                                text = { Text(sector) },
+                                onClick = {
+                                    sectorState = sector
+                                    subSectorState = "" // Reseta subsetor ao mudar setor
+                                    showSectorMenu = false
+                                }
+                            )
+                        }
+                    }
                 }
-                DropdownMenu(expanded = showSectorMenu, onDismissRequest = { showSectorMenu = false }) {
-                    sectors.forEach { sector ->
-                        DropdownMenuItem(
-                            text = { Text(sector) },
-                            onClick = {
-                                sectorState = sector
-                                showSectorMenu = false
+            }
+
+            // Menu de Subsetor
+            if (!sectorState.isNullOrBlank()) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Subsetor", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Box(modifier = Modifier.weight(1.8f)) {
+                        OutlinedButton(
+                            onClick = { showSubSectorMenu = true },
+                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {
+                            Text(if (subSectorState.isNullOrBlank()) "Selecionar" else subSectorState, fontSize = 13.sp)
+                        }
+                        DropdownMenu(expanded = showSubSectorMenu, onDismissRequest = { showSubSectorMenu = false }) {
+                            currentClassification[sectorState]?.forEach { sub ->
+                                DropdownMenuItem(
+                                    text = { Text(sub) },
+                                    onClick = {
+                                        subSectorState = sub
+                                        showSubSectorMenu = false
+                                    }
+                                )
                             }
-                        )
+                        }
                     }
                 }
             }
         }
+
+        EditRow("Nome", nameState, source = data.fieldSources?.get("name")) { nameState = it }
+        EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
+        EditRow("Cotas", indicatorStates["cotas"] ?: "", true) { indicatorStates["cotas"] = it }
 
         if (data is AssetData.Stock) {
             EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
@@ -633,15 +670,14 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
             
-            if (sectorState == "Bancário") {
+            if (subSectorState == "Bancos") {
                 EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
             }
             Spacer(modifier = Modifier.height(8.dp))
             EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
         } else if (data is AssetData.Fii) {
-            val fType = indicatorStates["fType"] ?: ""
-            val isPaperOrFoF = fType.contains("Papel") || fType.contains("Fundos") || fType.contains("Fiagro")
+            val isPaperOrFoF = sectorState == "Papel"
             
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
             
@@ -662,32 +698,6 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             if (!isPaperOrFoF) {
                 EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
             }
-            
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Tipo Fundo", modifier = Modifier.weight(1f), fontSize = 12.sp)
-                Box(modifier = Modifier.weight(1.8f)) {
-                    OutlinedButton(
-                        onClick = { showFiiTypeMenu = true },
-                        modifier = Modifier.fillMaxWidth().height(36.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        shape = MaterialTheme.shapes.extraSmall
-                    ) {
-                        val fType = indicatorStates["fType"] ?: ""
-                        Text(if (fType.isBlank()) "Selecionar" else fType, fontSize = 13.sp)
-                    }
-                    DropdownMenu(expanded = showFiiTypeMenu, onDismissRequest = { showFiiTypeMenu = false }) {
-                        fiiTypes.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type) },
-                                onClick = {
-                                    indicatorStates["fType"] = type
-                                    showFiiTypeMenu = false
-                                }
-                            )
-                        }
-                    }
-                }
-            }
 
             EditRow("Gestão", indicatorStates["mType"] ?: "", false, data.fieldSources?.get("mType")) { indicatorStates["mType"] = it }
         } else if (data is AssetData.Etf) {
@@ -702,10 +712,11 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             Button(onClick = {
+                val sharesNum = parseBR(indicatorStates["cotas"] ?: "0")
                 val updated = when (data) {
                     is AssetData.Stock -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = parseBR(indicatorStates["cotas"] ?: "0"),
+                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
+                        sharesCount = sharesNum,
                         lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"),
                         roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
                         dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
@@ -715,23 +726,23 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
                     )
                     is AssetData.Fii -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = parseBR(indicatorStates["cotas"] ?: "0"),
+                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
+                        sharesCount = sharesNum,
                         pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
                         yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
                         propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
                         managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
-                        fundType = indicatorStates["fType"] ?: "", managementType = indicatorStates["mType"] ?: ""
+                        fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
                     )
                     is AssetData.Etf -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = parseBR(indicatorStates["cotas"] ?: "0"),
+                        name = nameState, currentPrice = parseBR(priceState), sector = "ETF", subSector = "ETF", isInPortfolio = inPortfolioState,
+                        sharesCount = sharesNum,
                         adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, trackingError = parseBR(indicatorStates["te"] ?: "0"),
                         avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0, numberOfHoldings = parseBR(indicatorStates["hold"] ?: "0").toInt()
                     )
                     is AssetData.Bdr -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = parseBR(indicatorStates["cotas"] ?: "0"),
+                        name = nameState, currentPrice = parseBR(priceState), sector = "BDR", subSector = "BDR", isInPortfolio = inPortfolioState,
+                        sharesCount = sharesNum,
                         dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0, parity = indicatorStates["par"] ?: "1:1"
                     )
                 }

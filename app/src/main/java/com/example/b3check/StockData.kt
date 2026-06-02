@@ -7,6 +7,7 @@ sealed class AssetData {
     abstract val name: String
     abstract val currentPrice: Double
     abstract val sector: String
+    abstract val subSector: String
     abstract val isInPortfolio: Boolean
     abstract val sharesCount: Double
     var pros: List<String> = emptyList()
@@ -18,7 +19,8 @@ sealed class AssetData {
         override val ticker: String,
         override val name: String,
         override val currentPrice: Double,
-        override val sector: String,
+        override val sector: String = "",
+        override val subSector: String = "",
         val lpa: Double = 0.0,
         val vpa: Double = 0.0,
         val dividendYield5Years: Double = 0.0,
@@ -47,7 +49,8 @@ sealed class AssetData {
         override val ticker: String,
         override val name: String,
         override val currentPrice: Double,
-        override val sector: String,
+        override val sector: String = "",
+        override val subSector: String = "",
         val fundType: String = "Tijolo",
         val managementType: String = "Ativa",
         val pvp: Double = 0.0,
@@ -70,7 +73,8 @@ sealed class AssetData {
         override val ticker: String,
         override val name: String,
         override val currentPrice: Double,
-        override val sector: String,
+        override val sector: String = "ETF",
+        override val subSector: String = "ETF",
         val adminFee: Double = 0.0,
         val trackingError: Double = 0.0,
         val avgDailyVolume: Double = 0.0,
@@ -86,7 +90,8 @@ sealed class AssetData {
         override val ticker: String,
         override val name: String,
         override val currentPrice: Double,
-        override val sector: String,
+        override val sector: String = "BDR",
+        override val subSector: String = "BDR",
         val dividendYield: Double = 0.0,
         val parity: String = "1:1",
         override val isInPortfolio: Boolean = false,

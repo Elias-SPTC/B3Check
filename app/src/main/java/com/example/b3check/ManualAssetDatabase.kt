@@ -54,12 +54,21 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 val type = cursor.getString(0)
                 val json = cursor.getString(1)
                 cursor.close()
-                when (type) {
+                val asset = when (type) {
                     "STOCK" -> gson.fromJson(json, AssetData.Stock::class.java)
                     "FII" -> gson.fromJson(json, AssetData.Fii::class.java)
                     "ETF" -> gson.fromJson(json, AssetData.Etf::class.java)
                     "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
                     else -> null
+                }
+                asset?.let {
+                    if (it.fieldSources == null) it.fieldSources = emptyMap()
+                    when(it) {
+                        is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "")
+                        is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "")
+                        is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF")
+                        is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR")
+                    }
                 }
             } else {
                 cursor.close()
@@ -97,7 +106,14 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 }
                 asset?.let { 
                     if (it.fieldSources == null) it.fieldSources = emptyMap()
-                    list.add(it) 
+                    // Garante que campos novos não venham nulos de backups antigos ou desserialização incompleta
+                    val safeAsset = when(it) {
+                        is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "")
+                        is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "")
+                        is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF")
+                        is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR")
+                    }
+                    list.add(safeAsset)
                 }
             }
             cursor.close()
