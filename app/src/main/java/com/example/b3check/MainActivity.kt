@@ -524,6 +524,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     var showSubSectorMenu by remember { mutableStateOf(false) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showTenantInfo by remember { mutableStateOf(false) }
     var pendingType by remember { mutableStateOf("") }
 
 
@@ -603,6 +604,48 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         )
     }
 
+    if (showTenantInfo) {
+        val fType = sectorState
+        val title = when {
+            fType == "Papel" || subSectorState.contains("Recebíveis") -> "Critérios de Devedores (Papel)"
+            subSectorState.contains("FOFs") -> "Critérios de Carteira (FoF)"
+            else -> "Critérios de Inquilinos (Tijolo)"
+        }
+        
+        AlertDialog(
+            onDismissRequest = { showTenantInfo = false },
+            title = { Text(title) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (fType == "Papel" || subSectorState.contains("Recebíveis")) {
+                        Text("Nota 1: Concentração Crítica", fontWeight = FontWeight.Bold)
+                        Text("1-3 Devedores ou maior emissor > 40% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada", fontWeight = FontWeight.Bold)
+                        Text("10-20 Devedores e nenhum > 15% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 40 Devedores e nenhum > 5% do PL.\n", fontSize = 12.sp)
+                    } else if (subSectorState.contains("FOFs")) {
+                        Text("Nota 1: Carteira Restrita", fontWeight = FontWeight.Bold)
+                        Text("Concentrado em poucos fundos ou em uma única gestora.\n", fontSize = 12.sp)
+                        Text("Nota 3: Carteira Diversificada", fontWeight = FontWeight.Bold)
+                        Text("Mais de 15 fundos de pelo menos 5 gestoras diferentes.\n", fontSize = 12.sp)
+                        Text("Nota 5: Carteira Robusta", fontWeight = FontWeight.Bold)
+                        Text("Mais de 25 fundos, alta liquidez e gestoras independentes.\n", fontSize = 12.sp)
+                    } else {
+                        Text("Nota 1: Monoinquilino (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                        Text("1 único inquilino ou maior inquilino > 50% da receita.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada", fontWeight = FontWeight.Bold)
+                        Text("6 a 15 inquilinos e nenhum > 20% da receita.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 30 inquilinos e nenhum > 5% da receita.\n", fontSize = 12.sp)
+                    }
+                    Text("Nota 0: Desativa este parâmetro da análise.", fontSize = 11.sp, color = Color.Gray)
+                }
+            },
+            confirmButton = { Button(onClick = { showTenantInfo = false }) { Text("Entendi") } }
+        )
+    }
+
     LaunchedEffect(data.ticker) {
         indicatorStates.clear()
         if (data is AssetData.Stock) {
@@ -614,7 +657,6 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["payout"] = formatBR(data.payout * 100)
             indicatorStates["basel"] = formatBR(data.baselIndex)
             indicatorStates["graham"] = formatBR(data.grahamPrice); indicatorStates["bazin"] = formatBR(data.bazinPrice)
-            indicatorStates["paidDiv"] = if (data.paidDividendsLast5Years) "Sim" else "Não"
             indicatorStates["valSource"] = data.valuationSource
         } else if (data is AssetData.Fii) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
@@ -623,8 +665,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["prop"] = data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
             indicatorStates["mType"] = data.managementType
-            indicatorStates["multiP"] = if (data.multiProperty) "Sim" else "Não"
-            indicatorStates["multiT"] = if (data.multiTenant) "Sim" else "Não"
+            indicatorStates["tScore"] = data.tenantScore.toString()
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError)
@@ -750,15 +791,6 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
             
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Dividendos 5a", modifier = Modifier.weight(1f), fontSize = 12.sp)
-                Row(modifier = Modifier.weight(1.8f)) {
-                    val current = indicatorStates["paidDiv"] ?: "Sim"
-                    TextButton(onClick = { indicatorStates["paidDiv"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
-                    TextButton(onClick = { indicatorStates["paidDiv"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
-                }
-            }
-
             if (subSectorState == "Bancos") {
                 EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
             }
@@ -766,34 +798,50 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
         } else if (data is AssetData.Fii) {
-            val isPaper = sectorState == "Papel" || subSectorState.contains("Recebíveis") || subSectorState.contains("FOFs")
+            val isPaper = sectorState == "Papel" || subSectorState.contains("Recebíveis")
+            val isFoF = subSectorState.contains("FOFs")
             val isShopping = subSectorState.contains("Shopping")
             
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
             
-            if (!isPaper) {
+            if (!isPaper && !isFoF) {
                 EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, data.fieldSources?.get("vac")) { indicatorStates["vac"] = it }
             }
             
             EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources?.get("y12")) { indicatorStates["y12"] = it }
             EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources?.get("y5")) { indicatorStates["y5"] = it }
             
-            if (!isPaper) {
+            if (!isPaper && !isFoF) {
                 EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Multi-Imóvel", modifier = Modifier.weight(1f), fontSize = 12.sp)
-                    Row(modifier = Modifier.weight(1.8f)) {
-                        val current = indicatorStates["multiP"] ?: "Sim"
-                        TextButton(onClick = { indicatorStates["multiP"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
-                        TextButton(onClick = { indicatorStates["multiP"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+            }
+                
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    val label = when {
+                        isPaper -> "Nota Devedores"
+                        isFoF -> "Nota Carteira"
+                        else -> "Nota Inquilino"
+                    }
+                    Text(label, fontSize = 12.sp)
+                    IconButton(onClick = { showTenantInfo = true }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
                     }
                 }
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Multi-Inquilino", modifier = Modifier.weight(1f), fontSize = 12.sp)
-                    Row(modifier = Modifier.weight(1.8f)) {
-                        val current = indicatorStates["multiT"] ?: "Sim"
-                        TextButton(onClick = { indicatorStates["multiT"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
-                        TextButton(onClick = { indicatorStates["multiT"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+                Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val current = (indicatorStates["tScore"] ?: "0").toInt()
+                    (0..5).forEach { score ->
+                        TextButton(
+                            onClick = { indicatorStates["tScore"] = score.toString() },
+                            modifier = Modifier.size(32.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = score.toString(),
+                                fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal,
+                                color = if (current == score) Color(0xFF1976D2) else Color.Gray,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }
@@ -801,7 +849,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             
-            if (!isPaper && !isShopping) {
+            if (!isPaper && !isShopping && !isFoF) {
                 EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
             }
 
@@ -837,8 +885,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         sharesCount = sharesNum,
                         pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
                         yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
-                        multiProperty = indicatorStates["multiP"] == "Sim", multiTenant = indicatorStates["multiT"] == "Sim",
-                        propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
+                        propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
+                        tenantScore = (indicatorStates["tScore"] ?: "0").toInt(),
+                        aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
                         managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
                         fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
                     )

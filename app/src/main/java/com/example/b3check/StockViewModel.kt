@@ -254,8 +254,13 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         if (data.dividendYield5Years >= 0.06) {
             score += 1.0
             p.add("DY Histórico sólido (> 6% nos últimos 5 anos)")
+        } else if (data.dividendYield5Years >= 0.04) {
+            score += 0.5
+            p.add("DY Histórico consistente (entre 4% e 6%)")
         } else if (data.dividendYield5Years > 0) {
-            c.add("DY Histórico abaixo de 6%")
+            c.add("DY Histórico baixo (abaixo de 4%)")
+        } else {
+            c.add("Não possui histórico de dividendos")
         }
 
         val grahamPrice = sqrt(22.5 * data.lpa * data.vpa)
@@ -320,13 +325,6 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 score -= 1.0
                 c.add("Alavancagem financeira elevada (> 1.2)")
             }
-        }
-
-        if (data.paidDividendsLast5Years) {
-            score += 0.5
-            p.add("Histórico de dividendos consistente")
-        } else {
-            c.add("Não pagou dividendos consistentemente")
         }
 
         if (data.payout in 0.3..0.8) {
@@ -418,9 +416,38 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        if (data.multiProperty && data.multiTenant) {
-            score += 1.0
-            p.add("Alta diversificação (Multi-imóvel/inquilino)")
+        if (data.propertyCount >= 10) {
+            score += 0.7
+            p.add("Excelente portfólio físico (10+ imóveis)")
+        } else if (data.propertyCount >= 5) {
+            score += 0.3
+            p.add("Bom portfólio físico (5-9 imóveis)")
+        } else if (data.sector == "Tijolo") {
+            c.add("Risco de concentração física (< 5 imóveis)")
+        }
+
+        // --- Diversificação de Inquilinos (Novo Sistema) ---
+        when (data.tenantScore) {
+            1 -> {
+                p.add("Nota Inquilino 1: Monoinquilino (Risco Altíssimo)")
+                // Sem bônus
+            }
+            2 -> {
+                score += 0.4
+                p.add("Nota Inquilino 2: Baixa Diversificação (Risco Alto)")
+            }
+            3 -> {
+                score += 0.8
+                p.add("Nota Inquilino 3: Diversificação Moderada (Risco Médio)")
+            }
+            4 -> {
+                score += 1.2
+                p.add("Nota Inquilino 4: Boa Diversificação (Risco Baixo)")
+            }
+            5 -> {
+                score += 2.0
+                p.add("Nota Inquilino 5: Excelente/Pulverizado (Risco Mínimo)")
+            }
         }
 
         // WALT não é métrica padrão de Shoppings

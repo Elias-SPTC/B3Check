@@ -64,6 +64,7 @@ sealed class AssetData {
         val weightedLeaseTerm: Double = 0.0,
         val managementFee: Double = 0.0,
         val propertyCount: Int = 1,
+        val tenantScore: Int = 0, // 1-5, 0 desativa
         val aum: Double = 0.0,
         override val isInPortfolio: Boolean = false,
         override val sharesCount: Double = 0.0
