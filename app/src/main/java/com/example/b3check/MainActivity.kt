@@ -417,10 +417,21 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
 @Composable
 fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
     val recs by viewModel.recommendations.collectAsState()
+    val selectedTickers = remember { mutableStateMapOf<String, Boolean>() }
+    var investAmount by remember { mutableStateOf("") }
+
+    // Pre-calcula notas para evitar recálculos excessivos
+    val scoredAssets = remember(recs) {
+        recs.map { it to viewModel.calculateScoreForAsset(it) }
+    }
+
+    val selectedAssets = scoredAssets.filter { selectedTickers[it.first.ticker] == true }
+    val totalScoreSelected = selectedAssets.sumOf { it.second }
+    val totalAporte = parseBR(investAmount)
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Recomendadas", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
-        Text("Ativos na Watchlist ordenados por qualidade", fontSize = 12.sp, color = Color.Gray)
+        Text("Selecione ativos para simular aporte proporcional à Nota", fontSize = 12.sp, color = Color.Gray)
         
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -429,21 +440,58 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                 Text("Nenhum ativo de pesquisa encontrado.", color = Color.Gray)
             }
         } else {
-            LazyColumn {
-                items(recs.withIndex().toList()) { (index, asset) ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1}º", fontWeight = FontWeight.Black, modifier = Modifier.padding(end = 12.dp), fontSize = 16.sp)
-                            Column {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(scoredAssets) { (asset, score) ->
+                    val isSelected = selectedTickers[asset.ticker] ?: false
+                    val idealPercent = if (totalScoreSelected > 0 && isSelected) (score / totalScoreSelected) * 100.0 else 0.0
+                    val suggestedAporte = if (totalAporte > 0 && idealPercent > 0) totalAporte * (idealPercent / 100.0) else 0.0
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .clickable { selectedTickers[asset.ticker] = !isSelected },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+                                             else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { selectedTickers[asset.ticker] = it }
+                            )
+                            
+                            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                                 Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text(asset.name, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
-                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                                Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text(asset.name, fontSize = 11.sp, maxLines = 1, color = Color.Gray)
+                                Text("Nota: ${formatBR(score)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            }
+
+                            if (isSelected) {
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text("Ideal: ${formatBR(idealPercent)}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2))
+                                    if (totalAporte > 0) {
+                                        Text("Sugestão: R$ ${formatBR(suggestedAporte)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Campo de Novo Aporte
+            OutlinedTextField(
+                value = investAmount,
+                onValueChange = { investAmount = it },
+                label = { Text("Simular novo aporte nos selecionados", fontSize = 12.sp) },
+                modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                prefix = { Text("R$ ", fontSize = 14.sp) }
+            )
         }
     }
 }
