@@ -661,6 +661,30 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         )
     }
 
+    if (showLeverageInfo) {
+        AlertDialog(
+            onDismissRequest = { showLeverageInfo = false },
+            title = { Text("Critérios de Alavancagem") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Cálculo: (Ativo Total - PL - Caixa) / (Ativo Total - Caixa)\n", fontSize = 12.sp, color = Color(0xFF1976D2))
+                    Text("Nota 1: Alavancagem Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                    Text("> 40% do valor total dos ativos.\n", fontSize = 12.sp)
+                    Text("Nota 2: Alavancagem Alta (Risco Elevado)", fontWeight = FontWeight.Bold)
+                    Text("Entre 25% e 40% do valor dos ativos.\n", fontSize = 12.sp)
+                    Text("Nota 3: Alavancagem Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
+                    Text("Entre 15% e 25% (Padrão de mercado).\n", fontSize = 12.sp)
+                    Text("Nota 4: Alavancagem Baixa (Risco Baixo)", fontWeight = FontWeight.Bold)
+                    Text("Entre 5% e 15%. Equilíbrio saudável.\n", fontSize = 12.sp)
+                    Text("Nota 5: Alavancagem Mínima (Risco Mínimo)", fontWeight = FontWeight.Bold)
+                    Text("< 5% (Fundo conservador ou com muito caixa).\n", fontSize = 12.sp)
+                    Text("Nota 0: Desativa o critério manual e usa o automático se disponível.", fontSize = 11.sp, color = Color.Gray)
+                }
+            },
+            confirmButton = { Button(onClick = { showLeverageInfo = false }) { Text("Entendi") } }
+        )
+    }
+
     LaunchedEffect(data.ticker) {
         indicatorStates.clear()
         if (data is AssetData.Stock) {
@@ -680,7 +704,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["y12"] = formatBR(data.yield12m * 100); indicatorStates["y5"] = formatBR(data.avgYield5Years * 100)
             indicatorStates["prop"] = data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
+            indicatorStates["mLev"] = if (data.fieldSources?.get("lev") == FieldSource.INTERNET || data.leverageValue > 0) formatBR(data.leverageValue * 100) else ""
             indicatorStates["mType"] = data.managementType
+            indicatorStates["multiT"] = if (data.multiTenant) "Sim" else "Não"
             indicatorStates["tScore"] = data.tenantScore.toString()
             indicatorStates["lScore"] = data.leverageScore.toString()
         } else if (data is AssetData.Etf) {
@@ -863,17 +889,26 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                     }
                 }
             }
+
+            if (!isPaper && !isFoF) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Multi-Inquilino", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Row(modifier = Modifier.weight(1.8f)) {
+                        val current = indicatorStates["multiT"] ?: "Sim"
+                        TextButton(onClick = { indicatorStates["multiT"] = "Sim" }) { Text("Sim", color = if(current=="Sim") Color(0xFF2E7D32) else Color.Gray) }
+                        TextButton(onClick = { indicatorStates["multiT"] = "Não" }) { Text("Não", color = if(current=="Não") Color.Red else Color.Gray) }
+                    }
+                }
+            }
             
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             
+            EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true, data.fieldSources?.get("lev")) { indicatorStates["mLev"] = it }
+
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Alavancagem", fontSize = 12.sp)
-                    val levSource = if (data is AssetData.Fii && data.leverageValue > 0 && data.leverageScore == 0) FieldSource.INTERNET else null
-                    if (levSource != null) {
-                        Icon(Icons.Default.Language, null, modifier = Modifier.padding(start = 4.dp).size(12.dp), tint = Color(0xFF1976D2).copy(alpha = 0.6f))
-                    }
+                    Text("Nota Alavancagem", fontSize = 12.sp)
                     IconButton(onClick = { showLeverageInfo = true }, modifier = Modifier.size(18.dp)) {
                         Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
                     }
@@ -938,6 +973,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
                         tenantScore = (indicatorStates["tScore"] ?: "0").toInt(),
                         leverageScore = (indicatorStates["lScore"] ?: "0").toInt(),
+                        leverageValue = parseBR(indicatorStates["mLev"] ?: "0") / 100.0,
                         aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
                         managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
                         fundType = sectorState, managementType = indicatorStates["mType"] ?: ""

@@ -90,12 +90,16 @@ class Investidor10ScraperRepository : AssetRepository {
                 val vacancy = parsePercentage(findInGrid("VACÂNCIA") ?: findIndicatorValue(doc, "VACÂNCIA"))
                 val propertyCount = parseDouble(findInGrid("NÚMERO DE IMÓVEIS") ?: findInGrid("QTD DE IMÓVEIS") ?: findIndicatorValue(doc, "NÚMERO DE IMÓVEIS", "QTD DE IMÓVEIS")).toInt()
                 
-                val totalAssets = parseLargeNumber(findIndicatorValue(doc, "ATIVOS", "ATIVO TOTAL"))
-                val cash = parseLargeNumber(findIndicatorValue(doc, "CAIXA", "DISPONIBILIDADES"))
+                // Busca profunda de ativos e caixa para alavancagem
+                val totalAssetsStr = findInGrid("ATIVOS") ?: findIndicatorValue(doc, "ATIVOS", "ATIVO TOTAL", "TOTAL DE ATIVOS")
+                val cashStr = findInGrid("DISPONIBILIDADES") ?: findInGrid("CAIXA") ?: findIndicatorValue(doc, "DISPONIBILIDADES", "CAIXA", "SALDO EM CAIXA", "DISPONÍVEL")
+                
+                val totalAssets = parseLargeNumber(totalAssetsStr)
+                val cash = parseLargeNumber(cashStr)
                 
                 val calculatedLeverage = if (totalAssets > 0 && (totalAssets - cash) > 0) {
                     (totalAssets - netWorth - cash) / (totalAssets - cash)
-                } else 0.0
+                } else -1.0 // Sinaliza que não foi possível calcular
 
                 AssetData.Fii(
                     ticker = ticker, name = pageTitle, currentPrice = price, sector = "Imobiliário",
@@ -103,15 +107,17 @@ class Investidor10ScraperRepository : AssetRepository {
                     multiProperty = propertyCount > 1, multiTenant = true, capRate = 0.08,
                     weightedLeaseTerm = 5.0, managementFee = 0.01, 
                     propertyCount = if (propertyCount > 0) propertyCount else 1, 
-                    leverageValue = calculatedLeverage.coerceAtLeast(0.0),
+                    leverageValue = if (calculatedLeverage >= 0) calculatedLeverage else 0.0,
                     aum = netWorth
                 ).apply { 
-                    fieldSources = mapOf(
+                    val mergedSources = mutableMapOf(
                         "name" to FieldSource.INTERNET, "currentPrice" to FieldSource.INTERNET,
                         "pvp" to FieldSource.INTERNET, "y12" to FieldSource.INTERNET,
                         "vac" to FieldSource.INTERNET, "prop" to FieldSource.INTERNET,
                         "aum" to FieldSource.INTERNET
                     )
+                    if (calculatedLeverage >= 0) mergedSources["lev"] = FieldSource.INTERNET
+                    fieldSources = mergedSources
                     val mocked = mutableSetOf<String>()
                     if (price == 0.0) mocked.add("Preço Atual")
                     if (pvp == 0.0) mocked.add("P/VP")

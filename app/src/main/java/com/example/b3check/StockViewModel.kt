@@ -57,9 +57,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                         internetData = fetchFromRepo(apiRepo, t)
                     }
 
-                    if (internetData != null) {
+                    // SÓ prossegue se os dados da internet forem ÚTEIS (Preço > 0)
+                    if (internetData != null && internetData.currentPrice > 0) {
                         data = if (data == null) internetData else {
-                            // Mescla dados da internet preservando edições manuais
+                            // MESCLAGEM ULTRA-SEGURA: Preserva o status da carteira e edições manuais
                             when {
                                 data is AssetData.Stock && internetData is AssetData.Stock -> {
                                     val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
@@ -67,10 +68,13 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                                         if (data.fieldSources?.get(k) == null) mergedSources[k] = v
                                     }
                                     data.copy(
+                                        name = if (data.name == data.ticker) internetData.name else data.name,
+                                        currentPrice = internetData.currentPrice,
                                         dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
                                         grahamPrice = if (data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
                                         bazinPrice = if (data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
-                                        isInPortfolio = data.isInPortfolio
+                                        sector = if (data.sector.isBlank() || data.sector == "Ação") internetData.sector else data.sector,
+                                        subSector = if (data.subSector.isBlank()) internetData.subSector else data.subSector
                                     ).apply { fieldSources = mergedSources }
                                 }
                                 data is AssetData.Fii && internetData is AssetData.Fii -> {
@@ -79,23 +83,32 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                                         if (data.fieldSources?.get(k) == null) mergedSources[k] = v
                                     }
                                     data.copy(
+                                        name = if (data.name == data.ticker) internetData.name else data.name,
+                                        currentPrice = internetData.currentPrice,
+                                        pvp = if (data.pvp <= 0.0) internetData.pvp else data.pvp,
+                                        yield12m = if (data.yield12m <= 0.0) internetData.yield12m else data.yield12m,
                                         leverageValue = if (data.leverageValue <= 0.0) internetData.leverageValue else data.leverageValue,
                                         aum = if (data.aum <= 0.0) internetData.aum else data.aum,
-                                        isInPortfolio = data.isInPortfolio
+                                        sector = if (data.sector.isBlank() || data.sector == "FII") internetData.sector else data.sector,
+                                        subSector = if (data.subSector.isBlank()) internetData.subSector else data.subSector
                                     ).apply { fieldSources = mergedSources }
                                 }
-                                else -> internetData
+                                else -> data // Tipos diferentes? Confia no banco local.
                             }
                         }
+                    } else if (data == null) {
+                        // Se for um ativo novo e a internet falhou/veio zerada, força erro para não criar lixo
+                        _uiState.value = StockUiState.Error("Dados não encontrados para o ticker $t")
+                        return@launch
                     }
                 }
 
-                // Se mesmo assim for nulo, tenta MOCK como último recurso (Simulação)
+                // Se for um ativo novo e nada foi encontrado, tenta MOCK como último recurso (Simulação)
                 if (data == null) {
                     data = fetchFromRepo(mockRepo, t)
                 }
 
-                // Fallback final: Objeto vazio com tipo selecionado
+                // Fallback final: Objeto vazio se o usuário selecionou o tipo mas a internet falhou
                 if (data == null && manualType != null) {
                     data = when(manualType) {
                         "FII" -> AssetData.Fii(t, t, 0.0, "FII", "", leverageScore = 0, tenantScore = 0)
@@ -233,7 +246,12 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 data.leverageValue < 0.40 -> 2
                 else -> 1
             }
-            return calculateFiiScore(data.copy(leverageScore = deducedScore))
+            // Temporariamente ajusta o score para o cálculo preencher Prós/Contras corretamente
+            val updatedData = data.copy(leverageScore = deducedScore)
+            val score = calculateFiiScore(updatedData)
+            data.pros = updatedData.pros
+            data.cons = updatedData.cons
+            return score
         }
         return when (data) {
             is AssetData.Stock -> calculateStockScore(data)
@@ -475,11 +493,11 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         
         when (data.tenantScore) {
             1 -> {
-                p.add("$tenantLabel 1: Monoinquilino / Concentrado (Risco Altíssimo)")
+                c.add("$tenantLabel 1: Concentração Crítica (Risco Altíssimo)")
             }
             2 -> {
                 score += 0.4
-                p.add("$tenantLabel 2: Baixa Diversificação (Risco Alto)")
+                c.add("$tenantLabel 2: Baixa Diversificação (Risco Alto)")
             }
             3 -> {
                 score += 0.8

@@ -50,7 +50,7 @@ class FundamentusScraperRepository : AssetRepository {
 
             // Detecta se é FII ou Ação pelo conteúdo (Fundamentus tem páginas diferentes)
             val tipo = findValueByLabel(doc, "Tipo") ?: ""
-            val isFii = t.endsWith("11") && (tipo.contains("FII", ignoreCase = true) || html.contains("Fundo Imobiliário", ignoreCase = true) || html.contains("Vacância", ignoreCase = true))
+            val isFii = t.endsWith("11") || tipo.contains("FII", ignoreCase = true) || html.contains("Fundo Imobiliário", ignoreCase = true) || html.contains("Vacância", ignoreCase = true)
 
             // No Fundamentus não há DY médio de 5 anos fácil, usamos o atual como fallback
             val dy5 = dy
