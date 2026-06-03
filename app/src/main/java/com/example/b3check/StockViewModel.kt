@@ -46,31 +46,46 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 var data: AssetData? = try { db.getAsset(t) } catch(e: Exception) { null }
                 
                 // Se não existe OU se campos vitais estão vazios, busca na internet
-                val needsFetch = data == null || (data is AssetData.Stock && data.dividendYield5Years <= 0.0)
+                val needsFetch = data == null || 
+                                (data is AssetData.Stock && data.dividendYield5Years <= 0.0) ||
+                                (data is AssetData.Fii && data.leverageValue <= 0.0)
                 
                 if (needsFetch) {
                     var internetData = fetchFromRepo(hybridRepo, t)
                     
-                    // Fallback para API se o scraper falhar
                     if (internetData == null) {
                         internetData = fetchFromRepo(apiRepo, t)
                     }
 
                     if (internetData != null) {
                         data = if (data == null) internetData else {
-                            // Mescla dados da internet nos campos vazios do objeto do banco
-                            if (data is AssetData.Stock && internetData is AssetData.Stock) {
-                                val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
-                                internetData.fieldSources?.forEach { (k, v) ->
-                                    if (data.fieldSources?.get(k) == null) mergedSources[k] = v
+                            // Mescla dados da internet preservando edições manuais
+                            when {
+                                data is AssetData.Stock && internetData is AssetData.Stock -> {
+                                    val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
+                                    internetData.fieldSources?.forEach { (k, v) ->
+                                        if (data.fieldSources?.get(k) == null) mergedSources[k] = v
+                                    }
+                                    data.copy(
+                                        dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
+                                        grahamPrice = if (data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
+                                        bazinPrice = if (data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
+                                        isInPortfolio = data.isInPortfolio
+                                    ).apply { fieldSources = mergedSources }
                                 }
-                                data.copy(
-                                    dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
-                                    grahamPrice = if (data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
-                                    bazinPrice = if (data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
-                                    isInPortfolio = data.isInPortfolio
-                                ).apply { fieldSources = mergedSources }
-                            } else internetData
+                                data is AssetData.Fii && internetData is AssetData.Fii -> {
+                                    val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
+                                    internetData.fieldSources?.forEach { (k, v) ->
+                                        if (data.fieldSources?.get(k) == null) mergedSources[k] = v
+                                    }
+                                    data.copy(
+                                        leverageValue = if (data.leverageValue <= 0.0) internetData.leverageValue else data.leverageValue,
+                                        aum = if (data.aum <= 0.0) internetData.aum else data.aum,
+                                        isInPortfolio = data.isInPortfolio
+                                    ).apply { fieldSources = mergedSources }
+                                }
+                                else -> internetData
+                            }
                         }
                     }
                 }
@@ -83,10 +98,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 // Fallback final: Objeto vazio com tipo selecionado
                 if (data == null && manualType != null) {
                     data = when(manualType) {
-                        "FII" -> AssetData.Fii(t, t, 0.0, "FII")
-                        "ETF" -> AssetData.Etf(t, t, 0.0, "ETF")
-                        "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR")
-                        else -> AssetData.Stock(t, t, 0.0, "Ação")
+                        "FII" -> AssetData.Fii(t, t, 0.0, "FII", "", leverageScore = 0, tenantScore = 0)
+                        "ETF" -> AssetData.Etf(t, t, 0.0, "ETF", "ETF")
+                        "BDR" -> AssetData.Bdr(t, t, 0.0, "BDR", "BDR")
+                        else -> AssetData.Stock(t, t, 0.0, "Ação", "", debtToEbitda = 0.0)
                     }
                 }
 
@@ -209,6 +224,17 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun calculateScoreForAsset(data: AssetData): Double {
+        // Se for um FII e a nota de alavancagem for zero, tenta deduzir a nota do valor bruto da internet
+        if (data is AssetData.Fii && data.leverageScore == 0 && data.leverageValue > 0) {
+            val deducedScore = when {
+                data.leverageValue < 0.05 -> 5
+                data.leverageValue < 0.15 -> 4
+                data.leverageValue < 0.25 -> 3
+                data.leverageValue < 0.40 -> 2
+                else -> 1
+            }
+            return calculateFiiScore(data.copy(leverageScore = deducedScore))
+        }
         return when (data) {
             is AssetData.Stock -> calculateStockScore(data)
             is AssetData.Fii -> calculateFiiScore(data)
@@ -318,12 +344,23 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 c.add("Índice de Basileia abaixo de 14%")
             }
         } else {
-            if (data.debtToEquity <= 0.8) {
+            // Alavancagem Industrial/Comercial
+            if (data.debtToEquity <= 0.8 && data.debtToEbitda <= 2.0) {
                 score += 2.0
-                p.add("Baixa Dívida/Patrimônio (Saudável)")
-            } else if (data.debtToEquity > 1.2) {
+                p.add("Baixa Alavancagem (Saudável)")
+            }
+            
+            if (data.debtToEbitda > 3.5) {
+                score -= 2.0
+                c.add("Alavancagem Perigosa: Dívida/EBITDA > 3.5x")
+            } else if (data.debtToEbitda > 2.5) {
                 score -= 1.0
-                c.add("Alavancagem financeira elevada (> 1.2)")
+                c.add("Alavancagem Elevada: Dívida/EBITDA > 2.5x")
+            }
+
+            if (data.debtToEquity > 1.2) {
+                score -= 1.0
+                c.add("Dívida/Patrimônio elevada (> 1.2)")
             }
         }
 
@@ -473,6 +510,30 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             p.add("Dividend Yield atrativo (> 9%)")
         } else if (data.yield12m > 0) {
             c.add("Dividend Yield abaixo do ideal (< 9%)")
+        }
+
+        // --- Risco de Alavancagem em FII (Novo Sistema 1-5) ---
+        when (data.leverageScore) {
+            1 -> {
+                score -= 2.0
+                c.add("Alavancagem Crítica (> 40% do Ativo): Risco Altíssimo")
+            }
+            2 -> {
+                score -= 1.0
+                c.add("Alavancagem Alta (25-40% do Ativo): Risco Elevado")
+            }
+            3 -> {
+                // Neutro
+                p.add("Alavancagem Moderada (15-25%): Risco Médio")
+            }
+            4 -> {
+                score += 0.5
+                p.add("Alavancagem Baixa (5-15%): Saudável")
+            }
+            5 -> {
+                score += 1.0
+                p.add("Alavancagem Mínima (< 5%): Excelente Solidez")
+            }
         }
         
         if (data.managementFee <= 0.01 && data.managementFee > 0) {

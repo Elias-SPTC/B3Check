@@ -36,6 +36,7 @@ sealed class AssetData {
         val pl: Double = 0.0,
         val dividendYield: Double = 0.0,
         val debtToEquity: Double = 0.0,
+        val debtToEbitda: Double = 0.0, // Novo parâmetro de alavancagem industrial
         val baselIndex: Double = 0.0,
         val defaultRate: Double = 0.0,
         val grahamPrice: Double = 0.0,
@@ -65,6 +66,8 @@ sealed class AssetData {
         val managementFee: Double = 0.0,
         val propertyCount: Int = 1,
         val tenantScore: Int = 0, // 1-5, 0 desativa
+        val leverageScore: Int = 0, // 1-5, 0 desativa
+        val leverageValue: Double = 0.0, // % automático da internet
         val aum: Double = 0.0,
         override val isInPortfolio: Boolean = false,
         override val sharesCount: Double = 0.0

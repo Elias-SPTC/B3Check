@@ -57,12 +57,27 @@ class FundamentusScraperRepository : AssetRepository {
 
             if (isFii) {
                 val vacancy = parsePercentage(findValueByLabel(doc, "Vacância"))
+                
+                val totalAssets = parseLargeNumber(findValueByLabel(doc, "Ativo Total"))
+                val cash = parseLargeNumber(findValueByLabel(doc, "Disponibilidades"))
+                
+                val calculatedLeverage = if (totalAssets > 0 && (totalAssets - cash) > 0) {
+                    (totalAssets - netWorth - cash) / (totalAssets - cash)
+                } else 0.0
+
                 AssetData.Fii(
                     ticker = t, name = name, currentPrice = price, sector = "FII",
                     pvp = pvp, vacancy = vacancy, yield12m = dy, ffoMargin = 0.8,
                     multiProperty = true, multiTenant = true, capRate = 0.08,
-                    weightedLeaseTerm = 5.0, managementFee = 0.01, propertyCount = 5, aum = netWorth
-                ).apply {
+                    weightedLeaseTerm = 5.0, managementFee = 0.01, propertyCount = 5, 
+                    leverageValue = calculatedLeverage.coerceAtLeast(0.0),
+                    aum = netWorth
+                ).apply { 
+                    fieldSources = mapOf(
+                        "name" to FieldSource.INTERNET, "currentPrice" to FieldSource.INTERNET,
+                        "pvp" to FieldSource.INTERNET, "y12" to FieldSource.INTERNET,
+                        "vac" to FieldSource.INTERNET, "aum" to FieldSource.INTERNET
+                    )
                     val mocked = mutableSetOf<String>()
                     if (price == 0.0) mocked.add("Preço Atual")
                     if (pvp == 0.0) mocked.add("P/VP")

@@ -525,6 +525,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showTenantInfo by remember { mutableStateOf(false) }
+    var showLeverageInfo by remember { mutableStateOf(false) }
     var pendingType by remember { mutableStateOf("") }
 
 
@@ -560,12 +561,14 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         val s = sectorState
         val ss = subSectorState
         val shares = parseBR(indicatorStates["cotas"] ?: "0")
+        val deEbitda = parseBR(indicatorStates["deEbitda"] ?: "0")
+        val levScore = (indicatorStates["lScore"] ?: "0").toInt()
         
         val updated = when (newType) {
-            "FII" -> AssetData.Fii(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares)
+            "FII" -> AssetData.Fii(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares, leverageScore = levScore)
             "ETF" -> AssetData.Etf(t, n, p, "ETF", "ETF", isInPortfolio = inPortfolioState, sharesCount = shares)
             "BDR" -> AssetData.Bdr(t, n, p, "BDR", "BDR", isInPortfolio = inPortfolioState, sharesCount = shares)
-            else -> AssetData.Stock(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares)
+            else -> AssetData.Stock(t, n, p, s, ss, isInPortfolio = inPortfolioState, sharesCount = shares, debtToEbitda = deEbitda)
         }
         onSave(updated)
     }
@@ -618,25 +621,37 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     if (fType == "Papel" || subSectorState.contains("Recebíveis")) {
-                        Text("Nota 1: Concentração Crítica", fontWeight = FontWeight.Bold)
+                        Text("Nota 1: Concentração Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
                         Text("1-3 Devedores ou maior emissor > 40% do PL.\n", fontSize = 12.sp)
-                        Text("Nota 3: Diversificação Moderada", fontWeight = FontWeight.Bold)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("4 a 9 Devedores ou maior entre 25% a 40%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
                         Text("10-20 Devedores e nenhum > 15% do PL.\n", fontSize = 12.sp)
-                        Text("Nota 5: Excelente (Pulverizado)", fontWeight = FontWeight.Bold)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("21-40 Devedores e maior < 10% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
                         Text("Mais de 40 Devedores e nenhum > 5% do PL.\n", fontSize = 12.sp)
                     } else if (subSectorState.contains("FOFs")) {
-                        Text("Nota 1: Carteira Restrita", fontWeight = FontWeight.Bold)
+                        Text("Nota 1: Carteira Restrita (Risco Altíssimo)", fontWeight = FontWeight.Bold)
                         Text("Concentrado em poucos fundos ou em uma única gestora.\n", fontSize = 12.sp)
-                        Text("Nota 3: Carteira Diversificada", fontWeight = FontWeight.Bold)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("5 a 14 fundos ou maior concentração > 25%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Carteira Diversificada (Risco Médio)", fontWeight = FontWeight.Bold)
                         Text("Mais de 15 fundos de pelo menos 5 gestoras diferentes.\n", fontSize = 12.sp)
-                        Text("Nota 5: Carteira Robusta", fontWeight = FontWeight.Bold)
+                        Text("Nota 4: Boa Carteira (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 20 fundos de 10+ gestoras e nenhum > 10%.\n", fontSize = 12.sp)
+                        Text("Nota 5: Carteira Robusta (Risco Mínimo)", fontWeight = FontWeight.Bold)
                         Text("Mais de 25 fundos, alta liquidez e gestoras independentes.\n", fontSize = 12.sp)
                     } else {
                         Text("Nota 1: Monoinquilino (Risco Altíssimo)", fontWeight = FontWeight.Bold)
                         Text("1 único inquilino ou maior inquilino > 50% da receita.\n", fontSize = 12.sp)
-                        Text("Nota 3: Diversificação Moderada", fontWeight = FontWeight.Bold)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("2 a 5 inquilinos ou principal entre 30% a 50%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
                         Text("6 a 15 inquilinos e nenhum > 20% da receita.\n", fontSize = 12.sp)
-                        Text("Nota 5: Excelente (Pulverizado)", fontWeight = FontWeight.Bold)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("16 a 30 inquilinos e maior inquilino < 10%.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
                         Text("Mais de 30 inquilinos e nenhum > 5% da receita.\n", fontSize = 12.sp)
                     }
                     Text("Nota 0: Desativa este parâmetro da análise.", fontSize = 11.sp, color = Color.Gray)
@@ -653,6 +668,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["lpa"] = formatBR(data.lpa); indicatorStates["vpa"] = formatBR(data.vpa)
             indicatorStates["roe"] = formatBR(data.roe * 100); indicatorStates["dy"] = formatBR(data.dividendYield * 100)
             indicatorStates["dy5"] = formatBR(data.dividendYield5Years * 100); indicatorStates["de"] = formatBR(data.debtToEquity)
+            indicatorStates["deEbitda"] = formatBR(data.debtToEbitda)
             indicatorStates["ml"] = formatBR(data.netMargin * 100); indicatorStates["pl"] = formatBR(data.pl)
             indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["payout"] = formatBR(data.payout * 100)
             indicatorStates["basel"] = formatBR(data.baselIndex)
@@ -666,6 +682,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
             indicatorStates["mType"] = data.managementType
             indicatorStates["tScore"] = data.tenantScore.toString()
+            indicatorStates["lScore"] = data.leverageScore.toString()
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError)
@@ -785,6 +802,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             if (subSectorState != "Bancos") {
                 EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true, data.fieldSources?.get("ml")) { indicatorStates["ml"] = it }
                 EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true, data.fieldSources?.get("de")) { indicatorStates["de"] = it }
+                EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, data.fieldSources?.get("deEbitda")) { indicatorStates["deEbitda"] = it }
             }
 
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
@@ -849,6 +867,36 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, data.fieldSources?.get("aum")) { indicatorStates["aum"] = it }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, data.fieldSources?.get("mFee")) { indicatorStates["mFee"] = it }
             
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Alavancagem", fontSize = 12.sp)
+                    val levSource = if (data is AssetData.Fii && data.leverageValue > 0 && data.leverageScore == 0) FieldSource.INTERNET else null
+                    if (levSource != null) {
+                        Icon(Icons.Default.Language, null, modifier = Modifier.padding(start = 4.dp).size(12.dp), tint = Color(0xFF1976D2).copy(alpha = 0.6f))
+                    }
+                    IconButton(onClick = { showLeverageInfo = true }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.Info, contentDescription = null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
+                    }
+                }
+                Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val current = (indicatorStates["lScore"] ?: "0").toInt()
+                    (0..5).forEach { score ->
+                        TextButton(
+                            onClick = { indicatorStates["lScore"] = score.toString() },
+                            modifier = Modifier.size(32.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(
+                                text = score.toString(),
+                                fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal,
+                                color = if (current == score) Color(0xFFD32F2F) else Color.Gray,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+            
             if (!isPaper && !isShopping && !isFoF) {
                 EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, data.fieldSources?.get("walt")) { indicatorStates["walt"] = it }
             }
@@ -875,7 +923,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
                         dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
                         paidDividendsLast5Years = indicatorStates["paidDiv"] == "Sim",
-                        netMargin = parseBR(indicatorStates["ml"] ?: "0") / 100.0, debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
+                        netMargin = parseBR(indicatorStates["ml"] ?: "0") / 100.0, 
+                        debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
+                        debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"),
                         pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"),
                         baselIndex = parseBR(indicatorStates["basel"] ?: "0"),
                         grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
@@ -887,6 +937,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
                         propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
                         tenantScore = (indicatorStates["tScore"] ?: "0").toInt(),
+                        leverageScore = (indicatorStates["lScore"] ?: "0").toInt(),
                         aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
                         managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
                         fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
@@ -972,6 +1023,7 @@ fun AssetDetails(data: AssetData) {
             if (data.subSector != "Bancos") {
                 DetailsRow("Margem Líq", formatBR(data.netMargin * 100) + "%")
                 DetailsRow("Dív/Patrim", formatBR(data.debtToEquity))
+                DetailsRow("Dív/EBITDA", formatBR(data.debtToEbitda))
             } else {
                 DetailsRow("Índ. Basileia", formatBR(data.baselIndex))
             }
@@ -982,6 +1034,19 @@ fun AssetDetails(data: AssetData) {
 
             DetailsRow("P/VP", formatBR(data.pvp))
             DetailsRow("DY 12m", formatBR(data.yield12m * 100) + "%")
+            
+            if (data.leverageScore > 0) {
+                val levLabel = when(data.leverageScore) {
+                    5 -> "Mínima"
+                    4 -> "Baixa"
+                    3 -> "Moderada"
+                    2 -> "Alta"
+                    else -> "Crítica"
+                }
+                DetailsRow("Alavancagem", levLabel, if (data.leverageScore <= 2) Color.Red else Color.Unspecified)
+            } else if (data.leverageValue > 0) {
+                DetailsRow("Alavancagem (Auto)", formatBR(data.leverageValue * 100) + "%", if (data.leverageValue > 0.3) Color.Red else Color.Unspecified)
+            }
             
             if (!isPaper && !isFoF) {
                 DetailsRow("Vacância", formatBR(data.vacancy * 100) + "%", if (data.vacancy <= 0.05) Color(0xFF2E7D32) else Color.Red)
