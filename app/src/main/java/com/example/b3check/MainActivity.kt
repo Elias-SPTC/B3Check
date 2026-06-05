@@ -7,11 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -274,6 +276,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
     
     var investAmount by remember { mutableStateOf("") }
     val investSuggestions = remember { mutableStateMapOf<String, Double>() }
+    val sharesToBuy = remember { mutableStateMapOf<String, Int>() }
     
     // Estados locais para edição sem interferência do reformat automático
     val editStates = remember { mutableStateMapOf<String, String>() }
@@ -289,16 +292,17 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
             Text("Preço", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
             Text("Aplicado", modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
             Text("%", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
-            Text("Aportes", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
+            Text("Sugestão", modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
         }
 
         HorizontalDivider()
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(portfolio) { asset ->
+            itemsIndexed(portfolio) { index, asset ->
                 val applied = asset.sharesCount * asset.currentPrice
                 val recPercent = allocation.find { it.first.ticker == asset.ticker }?.second ?: 0.0
-                val suggest = investSuggestions[asset.ticker] ?: 0.0
+                val valSuggest = investSuggestions[asset.ticker] ?: 0.0
+                val qtySuggest = sharesToBuy[asset.ticker] ?: 0
                 
                 val cKey = "${asset.ticker}_c"
                 val pKey = "${asset.ticker}_p"
@@ -307,8 +311,18 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                 val cotasText = editStates.getOrPut(cKey) { formatBR(asset.sharesCount, true) }
                 val precoText = editStates.getOrPut(pKey) { formatBR(asset.currentPrice, true) }
 
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(asset.ticker, modifier = Modifier.weight(1.2f), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                val rowBg = if (index % 2 != 0) {
+                    if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.04f)
+                } else Color.Transparent
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(rowBg)
+                        .padding(vertical = 3.dp), 
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(asset.ticker, modifier = Modifier.weight(1.2f).padding(start = 4.dp), fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     
                     // Cotas Editável
                     BasicTextField(
@@ -352,7 +366,15 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
 
                     Text(formatBR(applied), modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontSize = 12.sp, textAlign = TextAlign.End)
                     Text(formatBR(recPercent) + "%", modifier = Modifier.weight(1.0f), fontSize = 11.sp, textAlign = TextAlign.End)
-                    Text(formatBR(suggest), modifier = Modifier.weight(1.8f), fontSize = 13.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                    
+                    Column(modifier = Modifier.weight(1.8f).padding(end = 4.dp), horizontalAlignment = Alignment.End) {
+                        if (qtySuggest > 0) {
+                            Text("${qtySuggest} un", fontSize = 13.sp, color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                            Text("R$ " + formatBR(valSuggest), fontSize = 10.sp, color = Color.Gray)
+                        } else {
+                            Text("-", fontSize = 13.sp, color = Color.Gray)
+                        }
+                    }
                 }
             }
 
@@ -364,7 +386,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                     Text("TOTAL", modifier = Modifier.weight(3.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     Text(formatBR(totalApplied), modifier = Modifier.weight(2.0f).padding(end = 8.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End)
                     Text("", modifier = Modifier.weight(1.0f))
-                    Text(formatBR(totalSuggest), modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2E7D32), textAlign = TextAlign.End)
+                    Text("R$ " + formatBR(totalSuggest), modifier = Modifier.weight(1.8f), fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF2E7D32), textAlign = TextAlign.End)
                 }
             }
         }
@@ -381,30 +403,66 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
             )
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
-                val totalAporte = parseBR(investAmount)
-                if (totalAporte > 0) {
+                val totalAporteInput = parseBR(investAmount)
+                if (totalAporteInput > 0) {
                     val currentTotalValue = portfolio.sumOf { it.sharesCount * it.currentPrice }
-                    val targetTotalValue = currentTotalValue + totalAporte
+                    val targetTotalValue = currentTotalValue + totalAporteInput
                     
-                    val gaps = portfolio.map { asset ->
+                    // 1. Calcula Gaps Teóricos
+                    val assetWeights = portfolio.map { asset ->
                         val idealPercent = allocation.find { it.first.ticker == asset.ticker }?.second ?: 0.0
-                        val targetValue = targetTotalValue * (idealPercent / 100.0)
-                        val currentValue = asset.sharesCount * asset.currentPrice
-                        asset.ticker to (targetValue - currentValue).coerceAtLeast(0.0)
+                        asset to idealPercent
                     }
                     
-                    val totalGap = gaps.sumOf { it.second }
+                    val initialGaps = assetWeights.map { (asset, idealPercent) ->
+                        val targetVal = targetTotalValue * (idealPercent / 100.0)
+                        val currentVal = asset.sharesCount * asset.currentPrice
+                        asset.ticker to (targetVal - currentVal).coerceAtLeast(0.0)
+                    }
                     
+                    val totalGap = initialGaps.sumOf { it.second }
+                    val tempShares = mutableMapOf<String, Int>()
+                    var remainingMoney = totalAporteInput
+                    
+                    // 2. Alocação Inicial de Cotas Inteiras
+                    assetWeights.forEach { (asset, idealPercent) ->
+                        val moneyForAsset = if (totalGap > 0) {
+                            totalAporteInput * (initialGaps.find { it.first == asset.ticker }?.second ?: 0.0) / totalGap
+                        } else {
+                            totalAporteInput * (idealPercent / 100.0)
+                        }
+                        
+                        val qty = (moneyForAsset / asset.currentPrice).toInt()
+                        if (qty > 0 && asset.currentPrice > 0) {
+                            tempShares[asset.ticker] = qty
+                            remainingMoney -= qty * asset.currentPrice
+                        } else {
+                            tempShares[asset.ticker] = 0
+                        }
+                    }
+                    
+                    // 3. Distribuição do Saldo Remanescente (Loop de Troco)
+                    // Prioriza ativos onde o "troco" consegue comprar mais 1 cota, 
+                    // respeitando o ativo que estiver mais longe do alvo (maior gap/peso)
+                    while (remainingMoney > 0) {
+                        val canBuyMore = assetWeights
+                            .filter { it.first.currentPrice > 0 && it.first.currentPrice <= remainingMoney }
+                            .sortedByDescending { it.second } // Prioriza pela nota/peso ideal
+                        
+                        if (canBuyMore.isEmpty()) break
+                        
+                        val bestToBuy = canBuyMore.first().first
+                        tempShares[bestToBuy.ticker] = (tempShares[bestToBuy.ticker] ?: 0) + 1
+                        remainingMoney -= bestToBuy.currentPrice
+                    }
+
+                    // Atualiza estados
                     investSuggestions.clear()
-                    if (totalGap > 0) {
-                        gaps.forEach { (ticker, gap) ->
-                            investSuggestions[ticker] = totalAporte * (gap / totalGap)
-                        }
-                    } else {
-                        // Fallback caso todos estejam acima do ideal (distribui por peso direto)
-                        allocation.forEach { (asset, percent) ->
-                            investSuggestions[asset.ticker] = totalAporte * (percent / 100.0)
-                        }
+                    sharesToBuy.clear()
+                    tempShares.forEach { (ticker, qty) ->
+                        val price = portfolio.find { it.ticker == ticker }?.currentPrice ?: 0.0
+                        sharesToBuy[ticker] = qty
+                        investSuggestions[ticker] = qty * price
                     }
                 }
             }) {
@@ -425,9 +483,51 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
         recs.map { it to viewModel.calculateScoreForAsset(it) }
     }
 
-    val selectedAssets = scoredAssets.filter { selectedTickers[it.first.ticker] == true }
-    val totalScoreSelected = selectedAssets.sumOf { it.second }
-    val totalAporte = parseBR(investAmount)
+    val selectedWithScores = scoredAssets.filter { selectedTickers[it.first.ticker] == true }
+    val totalScoreSelected = selectedWithScores.sumOf { it.second }
+    val totalAporteInput = parseBR(investAmount)
+
+    // Lógica de Alocação de Cotas Reais
+    val suggestions = remember(totalAporteInput, selectedTickers.size, totalScoreSelected) {
+        val tempShares = mutableMapOf<String, Int>()
+        val tempValues = mutableMapOf<String, Double>()
+        
+        if (totalAporteInput > 0 && totalScoreSelected > 0) {
+            var remaining = totalAporteInput
+            
+            // 1. Alocação inicial proporcional à nota
+            selectedWithScores.forEach { (asset, score) ->
+                val moneyForAsset = totalAporteInput * (score / totalScoreSelected)
+                val qty = (moneyForAsset / asset.currentPrice).toInt()
+                if (qty > 0 && asset.currentPrice > 0) {
+                    tempShares[asset.ticker] = qty
+                    remaining -= qty * asset.currentPrice
+                } else {
+                    tempShares[asset.ticker] = 0
+                }
+            }
+            
+            // 2. Loop de Troco (Distribui sobra nos ativos mais baratos/prioritários que cabem)
+            while (remaining > 0) {
+                val canBuyMore = selectedWithScores
+                    .filter { it.first.currentPrice > 0 && it.first.currentPrice <= remaining }
+                    .sortedByDescending { it.second } // Prioriza nota
+                
+                if (canBuyMore.isEmpty()) break
+                
+                val best = canBuyMore.first().first
+                tempShares[best.ticker] = (tempShares[best.ticker] ?: 0) + 1
+                remaining -= best.currentPrice
+            }
+            
+            // Calcula valores totais finais
+            tempShares.forEach { (ticker, qty) ->
+                val price = selectedWithScores.find { it.first.ticker == ticker }?.first?.currentPrice ?: 0.0
+                tempValues[ticker] = qty * price
+            }
+        }
+        tempShares to tempValues
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Recomendadas", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
@@ -444,7 +544,8 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                 items(scoredAssets) { (asset, score) ->
                     val isSelected = selectedTickers[asset.ticker] ?: false
                     val idealPercent = if (totalScoreSelected > 0 && isSelected) (score / totalScoreSelected) * 100.0 else 0.0
-                    val suggestedAporte = if (totalAporte > 0 && idealPercent > 0) totalAporte * (idealPercent / 100.0) else 0.0
+                    val qtySuggest = suggestions.first[asset.ticker] ?: 0
+                    val valSuggest = suggestions.second[asset.ticker] ?: 0.0
 
                     Card(
                         modifier = Modifier
@@ -471,8 +572,9 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                             if (isSelected) {
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text("Ideal: ${formatBR(idealPercent)}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2))
-                                    if (totalAporte > 0) {
-                                        Text("Sugestão: R$ ${formatBR(suggestedAporte)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                    if (qtySuggest > 0) {
+                                        Text("${qtySuggest} un", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF2E7D32))
+                                        Text("R$ ${formatBR(valSuggest)}", fontSize = 10.sp, color = Color.Gray)
                                     }
                                 }
                             }
