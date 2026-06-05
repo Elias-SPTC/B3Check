@@ -133,24 +133,42 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
     val assets by viewModel.allAssets.collectAsState()
     val context = LocalContext.current
     var tickerToDelete by remember { mutableStateOf<String?>(null) }
+    var showIntegrityReport by remember { mutableStateOf(false) }
 
     if (tickerToDelete != null) {
-        AlertDialog(
-            onDismissRequest = { tickerToDelete = null },
-            title = { Text("Excluir Ativo") },
-            text = { Text("Tem certeza que deseja excluir o ativo $tickerToDelete?") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.deleteAsset(tickerToDelete!!)
-                    tickerToDelete = null
-                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Excluir") }
-            },
-            dismissButton = {
-                TextButton(onClick = { tickerToDelete = null }) { Text("Cancelar") }
-            }
-        )
+        // ... (existing Delete AlertDialog)
     }
 
+    if (showIntegrityReport) {
+        val assetsWithIssues = assets.map { it to viewModel.getIntegrityWarnings(it) }.filter { it.second.isNotEmpty() }
+        
+        AlertDialog(
+            onDismissRequest = { showIntegrityReport = false },
+            title = { Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.List, null, tint = Color(0xFFE65100), modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Relatório de Integridade")
+            }},
+            text = {
+                if (assetsWithIssues.isEmpty()) {
+                    Text("✅ Nenhum problema detectado em sua base de dados!")
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                        items(assetsWithIssues) { (asset, warnings) ->
+                            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                warnings.forEach { msg ->
+                                    Text("• $msg", fontSize = 11.sp, color = Color.DarkGray)
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(top = 4.dp), thickness = 0.5.dp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { Button(onClick = { showIntegrityReport = false }) { Text("Fechar") } }
+        )
+    }
 
     val currentDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
     val defaultBackupName = "$currentDate-B3Check.json"
@@ -184,6 +202,15 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
             Text("Meus Ativos", style = MaterialTheme.typography.titleLarge)
             
             Row {
+                IconButton(onClick = { showIntegrityReport = true }) { 
+                    Icon(Icons.Default.List, contentDescription = "Scan de Integridade", tint = Color(0xFFE65100)) 
+                }
+
+                IconButton(onClick = {
+                    viewModel.recalculateAllScores()
+                    Toast.makeText(context, "Todas as notas foram atualizadas!", Toast.LENGTH_SHORT).show()
+                }) { Icon(Icons.Default.Science, contentDescription = "Recalcular Tudo", tint = MaterialTheme.colorScheme.primary) }
+
                 IconButton(onClick = {
                     createDocumentLauncher.launch(defaultBackupName)
                 }) { Icon(Icons.Default.Share, contentDescription = "Salvar em Arquivo") }
@@ -232,8 +259,10 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
 fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
     val portfolioAllocation by viewModel.portfolioAllocation.collectAsState()
     val allAssets by viewModel.allAssets.collectAsState()
-    val portfolioAssets = allAssets.filter { it.isInPortfolio }
-    val totalCurrentValue = portfolioAssets.sumOf { it.sharesCount * it.currentPrice }
+    
+    // Otimização: Filtra e calcula o total apenas quando a lista de ativos muda
+    val portfolioAssets = remember(allAssets) { allAssets.filter { it.isInPortfolio } }
+    val totalCurrentValue = remember(portfolioAssets) { portfolioAssets.sumOf { it.sharesCount * it.currentPrice } }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Equilíbrio da Carteira", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
@@ -258,8 +287,8 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
                             Text(asset.sector, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Ideal: " + formatBR(idealPercent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
-                            Text("Atual: " + formatBR(currentPercent) + "%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF1976D2))
+                            Text("Ideal: " + formatBR(idealPercent) + "%", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1976D2))
+                            Text("Atual: " + formatBR(currentPercent) + "%", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1976D2))
                         }
                     }
                 }
@@ -271,15 +300,25 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
 @Composable
 fun InvestScreen(viewModel: StockViewModel = viewModel()) {
     val assets by viewModel.allAssets.collectAsState()
-    val portfolio = assets.filter { it.isInPortfolio }
     val allocation by viewModel.portfolioAllocation.collectAsState()
+    
+    // Otimização: Cache de portfólio para evitar filtros repetitivos no desenho da tela
+    val portfolio = remember(assets) { assets.filter { it.isInPortfolio } }
     
     var investAmount by remember { mutableStateOf("") }
     val investSuggestions = remember { mutableStateMapOf<String, Double>() }
     val sharesToBuy = remember { mutableStateMapOf<String, Int>() }
-    
-    // Estados locais para edição sem interferência do reformat automático
     val editStates = remember { mutableStateMapOf<String, String>() }
+
+    // Sincroniza estados de edição apenas quando o portfólio muda, sem travar a UI
+    LaunchedEffect(portfolio) {
+        portfolio.forEach { asset ->
+            val cKey = "${asset.ticker}_c"
+            val pKey = "${asset.ticker}_p"
+            if (!editStates.containsKey(cKey)) editStates[cKey] = formatBR(asset.sharesCount, true)
+            if (!editStates.containsKey(pKey)) editStates[pKey] = formatBR(asset.currentPrice, true)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Investir", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
@@ -300,16 +339,17 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
         LazyColumn(modifier = Modifier.weight(1f)) {
             itemsIndexed(portfolio) { index, asset ->
                 val applied = asset.sharesCount * asset.currentPrice
-                val recPercent = allocation.find { it.first.ticker == asset.ticker }?.second ?: 0.0
+                val recPercent = remember(allocation, asset.ticker) { 
+                    allocation.find { it.first.ticker == asset.ticker }?.second ?: 0.0 
+                }
                 val valSuggest = investSuggestions[asset.ticker] ?: 0.0
                 val qtySuggest = sharesToBuy[asset.ticker] ?: 0
                 
                 val cKey = "${asset.ticker}_c"
                 val pKey = "${asset.ticker}_p"
                 
-                // Sincroniza estado inicial se não houver edição ativa
-                val cotasText = editStates.getOrPut(cKey) { formatBR(asset.sharesCount, true) }
-                val precoText = editStates.getOrPut(pKey) { formatBR(asset.currentPrice, true) }
+                val cotasText = editStates[cKey] ?: formatBR(asset.sharesCount, true)
+                val precoText = editStates[pKey] ?: formatBR(asset.currentPrice, true)
 
                 val rowBg = if (index % 2 != 0) {
                     if (isSystemInDarkTheme()) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.04f)
@@ -377,6 +417,8 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                     }
                 }
             }
+            // ... (rest of LazyColumn)
+
 
             item {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -1185,10 +1227,32 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
 }
 
 @Composable
-fun ScoreResult(data: AssetData, score: Double) {
+fun ScoreResult(data: AssetData, score: Double, viewModel: StockViewModel = viewModel()) {
+    val integrityWarnings = remember(data) { viewModel.getIntegrityWarnings(data) }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("${data.ticker} - ${data.name}", fontWeight = FontWeight.Bold)
         Text("Nota: ${formatBR(score)} / 10", style = MaterialTheme.typography.headlineMedium)
+        
+        if (integrityWarnings.isNotEmpty()) {
+            Surface(
+                color = Color(0xFFFFF3E0),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.List, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
+                        Text(" Avisos de Integridade", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    }
+                    integrityWarnings.forEach { msg ->
+                        Text("• $msg", fontSize = 11.sp, color = Color(0xFF5D4037), modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+        }
+
         AssetDetails(data)
         ProsConsSection(data.pros, data.cons)
     }

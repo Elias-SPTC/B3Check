@@ -226,6 +226,55 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         _portfolioAllocation.value = allocation
     }
 
+    fun getIntegrityWarnings(data: AssetData): List<String> {
+        val warnings = mutableListOf<String>()
+        val tolerance = 0.15 // 15% de margem para arredondamentos
+
+        when (data) {
+            is AssetData.Stock -> {
+                // Checa P/L vs Preço/LPA
+                if (data.lpa > 0 && data.pl > 0 && data.currentPrice > 0) {
+                    val calcPL = data.currentPrice / data.lpa
+                    if (Math.abs(calcPL - data.pl) / data.pl > tolerance) {
+                        warnings.add("P/L informado (${formatBR(data.pl)}) diverge do calculado pelo preço/LPA (${formatBR(calcPL)}).")
+                    }
+                }
+                // Checa P/VP vs Preço/VPA
+                if (data.vpa > 0 && data.pvp > 0 && data.currentPrice > 0) {
+                    val calcPVP = data.currentPrice / data.vpa
+                    if (Math.abs(calcPVP - data.pvp) / data.pvp > tolerance) {
+                        warnings.add("P/VP informado (${formatBR(data.pvp)}) diverge do calculado pelo preço/VPA (${formatBR(calcPVP)}).")
+                    }
+                }
+            }
+            is AssetData.Fii -> {
+                val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis") || data.subSector.contains("FOFs")
+                
+                // Checa Nota vs Realidade Física (Apenas para Tijolo)
+                if (!isPaper && data.propertyCount <= 1 && data.tenantScore >= 4) {
+                    warnings.add("Conflito: Nota de Inquilino alta para um fundo Monoinmóvel.")
+                }
+                // Checa Alavancagem vs Nota
+                if (data.leverageValue > 0.25 && data.leverageScore >= 4) {
+                    warnings.add("Conflito: Nota de Alavancagem indica baixo risco, mas o percentual é alto (${formatBR(data.leverageValue * 100)}%).")
+                }
+            }
+            else -> {} // Sem regras para ETF/BDR por enquanto
+        }
+        return warnings
+    }
+
+    fun recalculateAllScores() {
+        viewModelScope.launch {
+            val list = db.getAllAssets()
+            list.forEach { asset ->
+                calculateScoreForAsset(asset) // Atualiza Prós e Contras internamente
+                db.saveAsset(asset)
+            }
+            loadAllAssets() // Atualiza os fluxos do Compose
+        }
+    }
+
     fun exportBackup(): String = db.exportBackup()
     
     fun importBackup(json: String) {
@@ -448,13 +497,16 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
         // P/VP é mais crítico em Papel (deve estar próximo a 1.0)
         if (isPaper) {
-            if (data.pvp in 0.98..1.02) {
+            if (data.pvp in 0.98..1.05) {
                 score += 3.0
                 p.add("P/VP ideal para Fundo de Papel")
+            } else if (data.pvp in 0.85..0.98) {
+                score += 1.5
+                p.add("Ativo com desconto (Oportunidade de mercado)")
             } else if (data.pvp > 1.05) {
                 c.add("Ágio perigoso para Fundo de Papel")
-            } else if (data.pvp < 0.95 && data.pvp > 0) {
-                c.add("Desconto excessivo (Pode indicar risco no crédito)")
+            } else if (data.pvp > 0 && data.pvp < 0.85) {
+                c.add("Desconto severo: Alerta para risco de crédito/inadimplência")
             }
         } else {
             if (data.pvp in 0.92..1.03) {
