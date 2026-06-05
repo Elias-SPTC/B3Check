@@ -845,7 +845,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["deEbitda"] = formatBR(data.debtToEbitda)
             indicatorStates["ml"] = formatBR(data.netMargin * 100); indicatorStates["pl"] = formatBR(data.pl)
             indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["payout"] = formatBR(data.payout * 100)
-            indicatorStates["basel"] = formatBR(data.baselIndex)
+            indicatorStates["basel"] = formatBR(data.baselIndex * 100)
             indicatorStates["graham"] = formatBR(data.grahamPrice); indicatorStates["bazin"] = formatBR(data.bazinPrice)
             indicatorStates["valSource"] = data.valuationSource
         } else if (data is AssetData.Fii) {
@@ -861,7 +861,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["lScore"] = data.leverageScore.toString()
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
-            indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError)
+            indicatorStates["aFee"] = formatBR(data.adminFee * 100)
+            indicatorStates["te"] = formatBR(data.trackingError * 100)
             indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0); indicatorStates["hold"] = data.numberOfHoldings.toString()
         } else if (data is AssetData.Bdr) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
@@ -986,7 +987,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
             
             if (subSectorState == "Bancos") {
-                EditRow("Índ. Basileia", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
+                EditRow("Índ. Basileia (%)", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
             }
             Spacer(modifier = Modifier.height(8.dp))
             EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
@@ -1089,7 +1090,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Gestão", indicatorStates["mType"] ?: "", false, data.fieldSources?.get("mType")) { indicatorStates["mType"] = it }
         } else if (data is AssetData.Etf) {
             EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, data.fieldSources?.get("aFee")) { indicatorStates["aFee"] = it }
-            EditRow("Tracking Error", indicatorStates["te"] ?: "", true, data.fieldSources?.get("te")) { indicatorStates["te"] = it }
+            EditRow("Tracking Error (%)", indicatorStates["te"] ?: "", true, data.fieldSources?.get("te")) { indicatorStates["te"] = it }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, data.fieldSources?.get("vol")) { indicatorStates["vol"] = it }
             EditRow("Holdings", indicatorStates["hold"] ?: "", true, data.fieldSources?.get("hold")) { indicatorStates["hold"] = it }
         } else if (data is AssetData.Bdr) {
@@ -1112,7 +1113,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
                         debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"),
                         pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"),
-                        baselIndex = parseBR(indicatorStates["basel"] ?: "0"),
+                        baselIndex = parseBR(indicatorStates["basel"] ?: "0") / 100.0,
                         grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
                     )
                     is AssetData.Fii -> data.copy(
@@ -1131,7 +1132,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                     is AssetData.Etf -> data.copy(
                         name = nameState, currentPrice = parseBR(priceState), sector = "ETF", subSector = "ETF", isInPortfolio = inPortfolioState,
                         sharesCount = sharesNum,
-                        adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, trackingError = parseBR(indicatorStates["te"] ?: "0"),
+                        adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, 
+                        trackingError = parseBR(indicatorStates["te"] ?: "0") / 100.0,
                         avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0, numberOfHoldings = parseBR(indicatorStates["hold"] ?: "0").toInt()
                     )
                     is AssetData.Bdr -> data.copy(
@@ -1211,7 +1213,7 @@ fun AssetDetails(data: AssetData) {
                 DetailsRow("Dív/Patrim", formatBR(data.debtToEquity))
                 DetailsRow("Dív/EBITDA", formatBR(data.debtToEbitda))
             } else {
-                DetailsRow("Índ. Basileia", formatBR(data.baselIndex))
+                DetailsRow("Índ. Basileia", formatBR(data.baselIndex * 100) + "%")
             }
         } else if (data is AssetData.Fii) {
             val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis")

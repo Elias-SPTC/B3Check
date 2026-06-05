@@ -262,7 +262,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun calculateStockScore(data: AssetData.Stock): Double {
-        var score = 0.0
+        var score = 0.0 // Volta para base rigorosa
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
@@ -395,7 +395,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun calculateFiiScore(data: AssetData.Fii): Double {
-        var score = 0.0
+        var score = 0.0 // Volta para base rigorosa
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
@@ -567,36 +567,50 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun calculateEtfScore(data: AssetData.Etf): Double {
-        var score = 0.0
+        var score = 0.0 // Volta para base rigorosa
         val p = mutableListOf<String>()
         val c = mutableListOf<String>()
 
-        if (data.adminFee <= 0.003 && data.adminFee > 0) {
-            score += 4.0
-            p.add("Taxa de Administração competitiva")
-        } else if (data.adminFee > 0.007) {
-            c.add("Taxa de Administração elevada")
+        // Taxa de Administração (Pesos maiores para permitir chegar a 10)
+        if (data.adminFee <= 0.002 && data.adminFee > 0) {
+            score += 5.0
+            p.add("Taxa de Administração ultra-competitiva (<= 0.2%)")
+        } else if (data.adminFee <= 0.005) {
+            score += 3.0
+            p.add("Taxa de Administração competitiva (0.3% - 0.5%)")
+        } else if (data.adminFee > 0.008) {
+            score -= 2.0
+            c.add("Taxa de Administração elevada (> 0.8%)")
         }
 
-        if (data.avgDailyVolume >= 2_000_000) {
-            score += 1.5
-            p.add("Liquidez robusta para negociação")
-        } else if (data.avgDailyVolume > 0) {
-            c.add("Baixa liquidez diária")
+        // Liquidez (Volume Diário)
+        if (data.avgDailyVolume >= 5_000_000) {
+            score += 2.0
+            p.add("Liquidez altíssima (> 5M/dia)")
+        } else if (data.avgDailyVolume >= 1_000_000) {
+            score += 1.0
+            p.add("Liquidez boa (> 1M/dia)")
+        } else if (data.avgDailyVolume > 0 && data.avgDailyVolume < 500_000) {
+            score -= 1.0
+            c.add("Baixa liquidez diária (Risco de saída)")
         }
 
+        // Tracking Error (Fidelidade ao Índice)
         if (data.trackingError <= 0.005 && data.trackingError > 0) {
             score += 2.0
-            p.add("Alta fidelidade ao índice (Baixo Tracking Error)")
-        } else if (data.trackingError > 0.015) {
+            p.add("Fidelidade excelente (Tracking Error < 0.5%)")
+        } else if (data.trackingError > 0.025) {
+            score -= 2.0
             c.add("Tracking Error elevado (Fidelidade baixa)")
         }
 
-        if (data.numberOfHoldings >= 50) {
+        // Diversificação
+        if (data.numberOfHoldings >= 100) {
             score += 1.0
-            p.add("Boa diversificação interna")
-        } else if (data.numberOfHoldings > 0) {
-            c.add("Carteira de ativos restrita")
+            p.add("Altíssima diversificação interna (100+ ativos)")
+        } else if (data.numberOfHoldings > 0 && data.numberOfHoldings < 20) {
+            score -= 1.0
+            c.add("Carteira de ativos muito restrita")
         }
 
         data.pros = p.take(10)
