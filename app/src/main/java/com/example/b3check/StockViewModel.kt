@@ -267,26 +267,29 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val c = mutableListOf<String>()
 
         // --- Critérios de Setor (Perenidade e Estabilidade) ---
-        when (data.sector) {
-            "Utilidade Pública", "Telecomunicações" -> {
+        val sector = data.sector.trim()
+        val subSector = data.subSector.trim()
+
+        when {
+            sector.equals("Utilidade Pública", true) || sector.equals("Telecomunicações", true) -> {
                 score += 1.5
                 p.add("Setor Perene: Alta previsibilidade e demanda estável")
             }
-            "Consumo Não Cíclico e Saúde" -> {
+            sector.equals("Consumo Não Cíclico e Saúde", true) || sector.equals("Materiais Básicos", true) -> {
                 score += 1.0
-                p.add("Setor Resiliente: Consumo Não Cíclico/Saúde")
+                p.add("Setor Resiliente / Essencial")
             }
-            "Petróleo e Gás" -> {
+            sector.equals("Petróleo e Gás", true) -> {
                 score += 0.5
-                p.add("Setor Estratégico: Petróleo, Gás e Biocombustíveis")
+                p.add("Setor Estratégico: Petróleo e Gás")
             }
-            "Financeiro" -> {
-                if (data.subSector == "Seguradoras") {
+            sector.equals("Financeiro", true) -> {
+                if (subSector.contains("Seguradoras", true)) {
                     score += 0.5
                     p.add("Subsetor Estável: Seguradoras")
                 }
             }
-            "Consumo Cíclico" -> {
+            sector.equals("Consumo Cíclico", true) -> {
                 if (data.debtToEquity > 0.8) {
                     score -= 1.0
                     c.add("Risco Cíclico: Alavancagem alta em setor sensível")
@@ -315,19 +318,19 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             c.add("Valuation esticado (acima de Graham)")
         }
 
-        if (data.pvp in 0.1..1.5) {
+        if (data.pvp in 0.1..2.0) {
             score += 1.0
-            p.add("P/VP atrativo (<= 1.5)")
-        } else if (data.pvp > 2.0) {
-            c.add("P/VP elevado (Acima de 2.0)")
+            p.add("P/VP atrativo (<= 2.0)")
+        } else if (data.pvp > 2.5) {
+            c.add("P/VP elevado (Acima de 2.5)")
         } else if (data.pvp <= 0) {
             c.add("P/VP não disponível ou negativo")
         }
 
-        if (data.pl in 1.0..15.0) {
+        if (data.pl in 1.0..20.0) {
             score += 1.0
-            p.add("P/L equilibrado (Preço/Lucro entre 1 e 15)")
-        } else if (data.pl > 20.0 || data.pl < 0) {
+            p.add("P/L equilibrado (Preço/Lucro entre 1 e 20)")
+        } else if (data.pl > 25.0 || data.pl < 0) {
             c.add("P/L fora da zona ideal (Alto ou Negativo)")
         }
 
