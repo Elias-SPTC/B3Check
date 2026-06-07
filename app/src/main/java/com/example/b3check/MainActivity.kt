@@ -645,7 +645,17 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                             Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
                                 Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                 Text(asset.name, fontSize = 11.sp, maxLines = 1, color = Color.Gray)
-                                Text("Nota: ${formatBR(score)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Nota: ${formatBR(score)}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    val pvp = when(asset) {
+                                        is AssetData.Stock -> asset.pvp
+                                        is AssetData.Fii -> asset.pvp
+                                        else -> 0.0
+                                    }
+                                    if (pvp > 0) {
+                                        Text(" • P/VP: ${formatBR(pvp)}", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
 
                             if (isSelected) {
