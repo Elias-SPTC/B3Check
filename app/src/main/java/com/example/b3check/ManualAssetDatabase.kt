@@ -62,13 +62,15 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     else -> null
                 }
                 asset?.let {
-                    if (it.fieldSources == null) it.fieldSources = emptyMap()
-                    when(it) {
+                    val sources = it.fieldSources ?: emptyMap()
+                    val safeAsset = when(it) {
                         is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda)
                         is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, leverageScore = it.leverageScore, leverageValue = it.leverageValue)
                         is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
                         is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
                     }
+                    safeAsset.fieldSources = sources
+                    safeAsset
                 }
             } else {
                 cursor.close()
@@ -105,7 +107,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     else -> null
                 }
                 asset?.let { 
-                    if (it.fieldSources == null) it.fieldSources = emptyMap()
+                    val sources = it.fieldSources ?: emptyMap()
                     // Garante que campos novos não venham nulos de backups antigos ou desserialização incompleta
                     val safeAsset = when(it) {
                         is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years, cagrRevenue5Years = it.cagrRevenue5Years)
@@ -113,6 +115,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                         is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
                         is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
                     }
+                    safeAsset.fieldSources = sources
                     list.add(safeAsset)
                 }
             }
@@ -155,6 +158,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                             else -> null
                         }
                         asset?.let {
+                            val sources = it.fieldSources ?: emptyMap()
                             // Aplica a lógica de "Ativo Seguro" antes de salvar para evitar nulidades
                             val safeAsset = when(it) {
                                 is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years, cagrRevenue5Years = it.cagrRevenue5Years)
@@ -162,6 +166,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                                 is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
                                 is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
                             }
+                            safeAsset.fieldSources = sources
                             saveAsset(safeAsset) 
                         }
                     }

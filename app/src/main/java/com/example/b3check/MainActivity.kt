@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,6 +61,42 @@ fun parseBR(v: String): Double {
     return try {
         v.replace(".", "").replace(",", ".").toDoubleOrNull() ?: 0.0
     } catch (e: Exception) { 0.0 }
+}
+
+fun getValByKey(stock: AssetData.Stock, key: String): Double {
+    return when(key) {
+        "lpa" -> stock.lpa
+        "vpa" -> stock.vpa
+        "pl" -> stock.pl
+        "pvp" -> stock.pvp
+        "roe" -> stock.roe
+        "ml" -> stock.netMargin
+        "de" -> stock.debtToEquity
+        "deEbitda" -> stock.debtToEbitda
+        "dy" -> stock.dividendYield
+        "dy5" -> stock.dividendYield5Years
+        "payout" -> stock.payout
+        "basel" -> stock.baselIndex
+        "graham" -> stock.grahamPrice
+        "bazin" -> stock.bazinPrice
+        else -> 0.0
+    }
+}
+
+fun getValByKeyFii(fii: AssetData.Fii, key: String): Double {
+    return when(key) {
+        "pvp" -> fii.pvp
+        "vac" -> fii.vacancy
+        "y12" -> fii.yield12m
+        "y5" -> fii.avgYield5Years
+        "vol" -> fii.avgDailyVolume
+        "prop" -> fii.propertyCount.toDouble()
+        "aum" -> fii.aum
+        "mFee" -> fii.managementFee
+        "walt" -> fii.weightedLeaseTerm
+        "mLev" -> fii.leverageValue
+        else -> 0.0
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -1012,7 +1049,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
 
         EditRow("Nome", nameState, source = data.fieldSources?.get("name")) { nameState = it }
         EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
-        EditRow("Cotas", indicatorStates["cotas"] ?: "", true) { indicatorStates["cotas"] = it }
+        EditRow("Cotas", indicatorStates["cotas"] ?: "", true, source = data.fieldSources?.get("cotas")) { indicatorStates["cotas"] = it }
 
         if (data is AssetData.Stock) {
             EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
@@ -1027,8 +1064,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, data.fieldSources?.get("deEbitda")) { indicatorStates["deEbitda"] = it }
             }
 
-            EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true) { indicatorStates["cLuc"] = it }
-            EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true) { indicatorStates["cRec"] = it }
+            EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true, source = data.fieldSources?.get("cLuc")) { indicatorStates["cLuc"] = it }
+            EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true, source = data.fieldSources?.get("cRec")) { indicatorStates["cRec"] = it }
 
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
@@ -1054,7 +1091,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources?.get("y12")) { indicatorStates["y12"] = it }
             EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources?.get("y5")) { indicatorStates["y5"] = it }
             
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }
+            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, source = data.fieldSources?.get("vol")) { indicatorStates["vol"] = it }
             
             if (!isPaper && !isFoF) {
                 EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
@@ -1151,50 +1188,87 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
             Button(onClick = {
                 val sharesNum = parseBR(indicatorStates["cotas"] ?: "0")
+                
+                // Nova lógica: Identifica o que foi alterado para travar como USER
+                val newSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
+                
+                // Campos base
+                if (nameState != data.name) newSources["name"] = FieldSource.USER
+                if (parseBR(priceState) != data.currentPrice) newSources["currentPrice"] = FieldSource.USER
+                if (sectorState != data.sector) newSources["sector"] = FieldSource.USER
+                if (subSectorState != data.subSector) newSources["subSector"] = FieldSource.USER
+                if (sharesNum != data.sharesCount) newSources["cotas"] = FieldSource.USER
+
                 val updated = when (data) {
-                    is AssetData.Stock -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = sharesNum,
-                        lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"),
-                        roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
-                        dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
-                        paidDividendsLast5Years = indicatorStates["paidDiv"] == "Sim",
-                        cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0") / 100.0,
-                        cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0") / 100.0,
-                        netMargin = parseBR(indicatorStates["ml"] ?: "0") / 100.0, 
-                        debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
-                        debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"),
-                        pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"),
-                        baselIndex = parseBR(indicatorStates["basel"] ?: "0") / 100.0,
-                        grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
-                    )
-                    is AssetData.Fii -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
-                        sharesCount = sharesNum,
-                        pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
-                        yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
-                        propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
-                        tenantScore = (indicatorStates["tScore"] ?: "0").toInt(),
-                        leverageScore = (indicatorStates["lScore"] ?: "0").toInt(),
-                        leverageValue = parseBR(indicatorStates["mLev"] ?: "0") / 100.0,
-                        avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0,
-                        aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
-                        managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
-                        fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
-                    )
-                    is AssetData.Etf -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = "ETF", subSector = "ETF", isInPortfolio = inPortfolioState,
-                        sharesCount = sharesNum,
-                        adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, 
-                        trackingError = parseBR(indicatorStates["te"] ?: "0") / 100.0,
-                        avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0, numberOfHoldings = parseBR(indicatorStates["hold"] ?: "0").toInt()
-                    )
-                    is AssetData.Bdr -> data.copy(
-                        name = nameState, currentPrice = parseBR(priceState), sector = "BDR", subSector = "BDR", isInPortfolio = inPortfolioState,
-                        sharesCount = sharesNum,
-                        dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0, parity = indicatorStates["par"] ?: "1:1"
-                    )
+                    is AssetData.Stock -> {
+                        val stock = data.copy(
+                            name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
+                            sharesCount = sharesNum,
+                            lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"),
+                            roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
+                            dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
+                            paidDividendsLast5Years = indicatorStates["paidDiv"] == "Sim",
+                            cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0") / 100.0,
+                            cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0") / 100.0,
+                            netMargin = parseBR(indicatorStates["ml"] ?: "0") / 100.0, 
+                            debtToEquity = parseBR(indicatorStates["de"] ?: "0"),
+                            debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"),
+                            pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"),
+                            baselIndex = parseBR(indicatorStates["basel"] ?: "0") / 100.0,
+                            grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
+                        )
+                        // Marca indicadores editados
+                        listOf("lpa", "vpa", "pl", "pvp", "roe", "ml", "de", "deEbitda", "dy", "dy5", "payout", "basel", "graham", "bazin", "cLuc", "cRec").forEach { key ->
+                            if (indicatorStates.containsKey(key)) newSources[key] = FieldSource.USER
+                        }
+                        stock
+                    }
+                    is AssetData.Fii -> {
+                        val fii = data.copy(
+                            name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
+                            sharesCount = sharesNum,
+                            pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
+                            yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
+                            propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
+                            tenantScore = (indicatorStates["tScore"] ?: "0").toInt(),
+                            leverageScore = (indicatorStates["lScore"] ?: "0").toInt(),
+                            leverageValue = parseBR(indicatorStates["mLev"] ?: "0") / 100.0,
+                            avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0,
+                            aum = parseBR(indicatorStates["aum"] ?: "0") * 1_000_000.0,
+                            managementFee = parseBR(indicatorStates["mFee"] ?: "0") / 100.0, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"),
+                            fundType = sectorState, managementType = indicatorStates["mType"] ?: ""
+                        )
+                        listOf("pvp", "vac", "y12", "y5", "vol", "prop", "aum", "mFee", "walt", "mLev").forEach { key ->
+                             if (indicatorStates.containsKey(key)) newSources[key] = FieldSource.USER
+                        }
+                        fii
+                    }
+                    is AssetData.Etf -> {
+                        val etf = data.copy(
+                            name = nameState, currentPrice = parseBR(priceState), sector = "ETF", subSector = "ETF", isInPortfolio = inPortfolioState,
+                            sharesCount = sharesNum,
+                            adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, 
+                            trackingError = parseBR(indicatorStates["te"] ?: "0") / 100.0,
+                            avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0, numberOfHoldings = parseBR(indicatorStates["hold"] ?: "0").toInt()
+                        )
+                        listOf("aFee", "te", "vol", "hold").forEach { key ->
+                            if (indicatorStates.containsKey(key)) newSources[key] = FieldSource.USER
+                        }
+                        etf
+                    }
+                    is AssetData.Bdr -> {
+                        val bdr = data.copy(
+                            name = nameState, currentPrice = parseBR(priceState), sector = "BDR", subSector = "BDR", isInPortfolio = inPortfolioState,
+                            sharesCount = sharesNum,
+                            dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0, parity = indicatorStates["par"] ?: "1:1"
+                        )
+                        listOf("dy", "par").forEach { key ->
+                            if (indicatorStates.containsKey(key)) newSources[key] = FieldSource.USER
+                        }
+                        bdr
+                    }
                 }
+                updated.fieldSources = newSources
                 onSave(updated)
             }, modifier = Modifier.weight(1f)) { Text("Salvar") }
             Spacer(modifier = Modifier.width(8.dp))
@@ -1214,11 +1288,13 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
                     FieldSource.INTERNET -> Icons.Default.Language
                     FieldSource.SIMULATION -> Icons.Default.Science
                     FieldSource.USER -> Icons.Default.Edit
+                    FieldSource.DIVERGENT -> Icons.Default.Warning
                 }
                 val color = when(s) {
                     FieldSource.INTERNET -> Color(0xFF1976D2)
                     FieldSource.SIMULATION -> Color(0xFF9C27B0)
                     FieldSource.USER -> Color(0xFF4CAF50)
+                    FieldSource.DIVERGENT -> Color(0xFFE65100)
                 }
                 Icon(
                     imageVector = icon,

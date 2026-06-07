@@ -1,6 +1,6 @@
 package com.example.b3check
 
-enum class FieldSource { INTERNET, SIMULATION, USER }
+enum class FieldSource { INTERNET, SIMULATION, USER, DIVERGENT }
 
 sealed class AssetData {
     abstract val ticker: String

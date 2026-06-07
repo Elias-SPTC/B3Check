@@ -65,32 +65,50 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                                 data is AssetData.Stock && internetData is AssetData.Stock -> {
                                     val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
                                     internetData.fieldSources?.forEach { (k, v) ->
-                                        if (data.fieldSources?.get(k) == null) mergedSources[k] = v
+                                        if (data.fieldSources?.get(k) == null) {
+                                            mergedSources[k] = v
+                                        } else if (data.fieldSources?.get(k) == FieldSource.USER || data.fieldSources?.get(k) == FieldSource.DIVERGENT) {
+                                            // Checa divergência
+                                            val oldVal = getValByKey(data, k)
+                                            val newVal = getValByKey(internetData, k)
+                                            if (newVal > 0 && Math.abs(newVal - oldVal) / newVal > 0.15) {
+                                                mergedSources[k] = FieldSource.DIVERGENT
+                                            }
+                                        }
                                     }
                                     data.copy(
-                                        name = if (data.name == data.ticker) internetData.name else data.name,
-                                        currentPrice = internetData.currentPrice,
-                                        dividendYield5Years = if (data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
-                                        grahamPrice = if (data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
-                                        bazinPrice = if (data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
-                                        sector = if (data.sector.isBlank() || data.sector == "Ação") internetData.sector else data.sector,
-                                        subSector = if (data.subSector.isBlank()) internetData.subSector else data.subSector
+                                        name = if (data.fieldSources?.get("name") != FieldSource.USER && data.fieldSources?.get("name") != FieldSource.DIVERGENT) internetData.name else data.name,
+                                        currentPrice = if (data.fieldSources?.get("currentPrice") != FieldSource.USER && data.fieldSources?.get("currentPrice") != FieldSource.DIVERGENT) internetData.currentPrice else data.currentPrice,
+                                        dividendYield5Years = if (data.fieldSources?.get("dy5") != FieldSource.USER && data.fieldSources?.get("dy5") != FieldSource.DIVERGENT && data.dividendYield5Years <= 0.0) internetData.dividendYield5Years else data.dividendYield5Years,
+                                        grahamPrice = if (data.fieldSources?.get("graham") != FieldSource.USER && data.fieldSources?.get("graham") != FieldSource.DIVERGENT && data.grahamPrice <= 0.0) internetData.grahamPrice else data.grahamPrice,
+                                        bazinPrice = if (data.fieldSources?.get("bazin") != FieldSource.USER && data.fieldSources?.get("bazin") != FieldSource.DIVERGENT && data.bazinPrice <= 0.0) internetData.bazinPrice else data.bazinPrice,
+                                        sector = if (data.fieldSources?.get("sector") != FieldSource.USER && data.fieldSources?.get("sector") != FieldSource.DIVERGENT && data.sector.isBlank()) internetData.sector else data.sector,
+                                        subSector = if (data.fieldSources?.get("subSector") != FieldSource.USER && data.fieldSources?.get("subSector") != FieldSource.DIVERGENT && data.subSector.isBlank()) internetData.subSector else data.subSector
                                     ).apply { fieldSources = mergedSources }
                                 }
                                 data is AssetData.Fii && internetData is AssetData.Fii -> {
                                     val mergedSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
                                     internetData.fieldSources?.forEach { (k, v) ->
-                                        if (data.fieldSources?.get(k) == null) mergedSources[k] = v
+                                        if (data.fieldSources?.get(k) == null) {
+                                            mergedSources[k] = v
+                                        } else if (data.fieldSources?.get(k) == FieldSource.USER || data.fieldSources?.get(k) == FieldSource.DIVERGENT) {
+                                            // Checa divergência para FII
+                                            val oldVal = getValByKeyFii(data, k)
+                                            val newVal = getValByKeyFii(internetData, k)
+                                            if (newVal > 0 && Math.abs(newVal - oldVal) / newVal > 0.15) {
+                                                mergedSources[k] = FieldSource.DIVERGENT
+                                            }
+                                        }
                                     }
                                     data.copy(
-                                        name = if (data.name == data.ticker) internetData.name else data.name,
-                                        currentPrice = internetData.currentPrice,
-                                        pvp = if (data.pvp <= 0.0) internetData.pvp else data.pvp,
-                                        yield12m = if (data.yield12m <= 0.0) internetData.yield12m else data.yield12m,
-                                        leverageValue = if (data.leverageValue <= 0.0) internetData.leverageValue else data.leverageValue,
-                                        aum = if (data.aum <= 0.0) internetData.aum else data.aum,
-                                        sector = if (data.sector.isBlank() || data.sector == "FII") internetData.sector else data.sector,
-                                        subSector = if (data.subSector.isBlank()) internetData.subSector else data.subSector
+                                        name = if (data.fieldSources?.get("name") != FieldSource.USER && data.fieldSources?.get("name") != FieldSource.DIVERGENT) internetData.name else data.name,
+                                        currentPrice = if (data.fieldSources?.get("currentPrice") != FieldSource.USER && data.fieldSources?.get("currentPrice") != FieldSource.DIVERGENT) internetData.currentPrice else data.currentPrice,
+                                        pvp = if (data.fieldSources?.get("pvp") != FieldSource.USER && data.fieldSources?.get("pvp") != FieldSource.DIVERGENT) internetData.pvp else data.pvp,
+                                        yield12m = if (data.fieldSources?.get("y12") != FieldSource.USER && data.fieldSources?.get("y12") != FieldSource.DIVERGENT) internetData.yield12m else data.yield12m,
+                                        leverageValue = if (data.fieldSources?.get("mLev") != FieldSource.USER && data.fieldSources?.get("mLev") != FieldSource.DIVERGENT && data.leverageValue <= 0.0) internetData.leverageValue else data.leverageValue,
+                                        aum = if (data.fieldSources?.get("aum") != FieldSource.USER && data.fieldSources?.get("aum") != FieldSource.DIVERGENT && data.aum <= 0.0) internetData.aum else data.aum,
+                                        sector = if (data.fieldSources?.get("sector") != FieldSource.USER && data.fieldSources?.get("sector") != FieldSource.DIVERGENT && data.sector.isBlank()) internetData.sector else data.sector,
+                                        subSector = if (data.fieldSources?.get("subSector") != FieldSource.USER && data.fieldSources?.get("subSector") != FieldSource.DIVERGENT && data.subSector.isBlank()) internetData.subSector else data.subSector
                                     ).apply { fieldSources = mergedSources }
                                 }
                                 else -> data // Tipos diferentes? Confia no banco local.
@@ -154,17 +172,7 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
 
     fun saveManualAsset(data: AssetData) {
         viewModelScope.launch {
-            // Marca campos vindo do editor como USER
-            val fieldKeys = when(data) {
-                is AssetData.Stock -> listOf("name", "currentPrice", "lpa", "vpa", "roe", "dy", "dy5", "de", "ml", "pl", "pvp", "payout", "graham", "bazin", "valSource")
-                is AssetData.Fii -> listOf("name", "currentPrice", "pvp", "vac", "y12", "y5", "prop", "aum", "mFee", "walt", "fType", "mType")
-                is AssetData.Etf -> listOf("name", "currentPrice", "aFee", "te", "vol", "hold")
-                is AssetData.Bdr -> listOf("name", "currentPrice", "dy", "par")
-            }
-            val newSources = data.fieldSources?.toMutableMap() ?: mutableMapOf()
-            fieldKeys.forEach { newSources[it] = FieldSource.USER }
-            data.fieldSources = newSources
-
+            // O mapeamento de USER já foi feito na MainActivity para garantir cópia correta do objeto
             db.saveAsset(data)
             val score = calculateScoreForAsset(data)
             _uiState.value = StockUiState.Success(data, score)
