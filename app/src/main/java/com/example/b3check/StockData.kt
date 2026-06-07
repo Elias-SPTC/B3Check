@@ -67,7 +67,8 @@ sealed class AssetData {
         val propertyCount: Int = 1,
         val tenantScore: Int = 0, // 1-5, 0 desativa
         val leverageScore: Int = 0, // 1-5, 0 desativa
-        val leverageValue: Double = 0.0, // % automático da internet
+        val leverageValue: Double = 0.0, 
+        val avgDailyVolume: Double = 0.0, // Novo: Liquidez para FIIs
         val aum: Double = 0.0,
         override val isInPortfolio: Boolean = false,
         override val sharesCount: Double = 0.0

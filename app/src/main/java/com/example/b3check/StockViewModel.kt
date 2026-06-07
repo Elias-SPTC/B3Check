@@ -246,6 +246,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                         warnings.add("P/VP informado (${formatBR(data.pvp)}) diverge do calculado pelo preço/VPA (${formatBR(calcPVP)}).")
                     }
                 }
+                // Checa CAGR Lucro negativo com nota alta
+                if (data.cagrProfit5Years < 0 && calculateStockScore(data) > 7.0) {
+                    warnings.add("Incoerência: Nota alta para empresa com lucro encolhendo (CAGR < 0).")
+                }
             }
             is AssetData.Fii -> {
                 val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis") || data.subSector.contains("FOFs")
@@ -257,6 +261,10 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
                 // Checa Alavancagem vs Nota
                 if (data.leverageValue > 0.25 && data.leverageScore >= 4) {
                     warnings.add("Conflito: Nota de Alavancagem indica baixo risco, mas o percentual é alto (${formatBR(data.leverageValue * 100)}%).")
+                }
+                // Checa Liquidez perigosa
+                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 100_000.0) {
+                    warnings.add("Alerta: Liquidez extremamente baixa (R$ ${formatBR(data.avgDailyVolume / 1000.0)}k/dia).")
                 }
             }
             else -> {} // Sem regras para ETF/BDR por enquanto
@@ -441,6 +449,16 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
             c.add("Payout muito elevado (Risco de corte)")
         }
 
+        // --- Crescimento (CAGR 5 anos) ---
+        if (data.cagrProfit5Years >= 0.10) {
+            score += 1.0
+            p.add("Crescimento sólido de lucros (CAGR > 10%)")
+        }
+        if (data.cagrRevenue5Years >= 0.10) {
+            score += 0.5
+            p.add("Crescimento consistente de receita")
+        }
+
         data.pros = p.take(10)
         data.cons = c.take(10)
         return score.coerceIn(0.0, 10.0)
@@ -454,6 +472,15 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
         val subSector = data.subSector ?: ""
         val isPaper = data.sector == "Papel" || subSector.contains("Recebíveis") || subSector.contains("FOFs")
         val isShopping = subSector.contains("Shopping")
+
+        // --- Liquidez ---
+        if (data.avgDailyVolume >= 1_000_000.0) {
+            score += 1.0
+            p.add("Alta liquidez (> 1M/dia)")
+        } else if (data.avgDailyVolume > 0 && data.avgDailyVolume < 500_000.0) {
+            score -= 1.0
+            c.add("Baixa liquidez (Risco de saída)")
+        }
 
         // --- Critérios de Setor e Subsetor ---
         when (data.sector) {
