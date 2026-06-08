@@ -12,100 +12,103 @@ class Investidor10ScraperRepository : AssetRepository {
 
     override suspend fun getAssetData(ticker: String): AssetData? = withContext(Dispatchers.IO) {
         val t = ticker.lowercase().trim()
-        val isFii = t.endsWith("11") 
-        val category = if (isFii) "fiis" else "acoes"
+        val isEndsWith11 = t.endsWith("11")
+        
+        // Se termina em 11, tenta primeiro Ações (Units), depois FIIs
+        if (isEndsWith11) {
+            val stockData = fetchInternal(t, "acoes")
+            if (stockData != null) return@withContext stockData
+            
+            val fiiData = fetchInternal(t, "fiis")
+            if (fiiData != null) return@withContext fiiData
+        } else {
+            // Se não termina em 11, é muito provavelmente uma Ação normal (3, 4, 5, 6)
+            val stockData = fetchInternal(t, "acoes")
+            if (stockData != null) return@withContext stockData
+        }
+        
+        // Fallback final para ETFs
+        fetchInternal(t, "etfs")
+    }
+
+    private fun fetchInternal(t: String, category: String): AssetData? {
         val urlString = "https://investidor10.com.br/$category/$t/"
+        val isFii = category == "fiis"
+        val isEtf = category == "etfs"
+        val ticker = t.uppercase()
 
         var connection: HttpURLConnection? = null
         try {
-            Log.d("Scraper", "Iniciando requisição HTTP para: $urlString")
+            Log.d("Scraper", "Iniciando requisição HTTP para ($category): $urlString")
             
             val url = URL(urlString)
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 10000
-            connection.readTimeout = 10000
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
             
-            // Cabeçalhos extremamente realistas para evitar o 403 do Cloudflare/WAF
+            // Cabeçalhos realistas para evitar bloqueios (WAF/Cloudflare)
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-            connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7")
-            connection.setRequestProperty("Cache-Control", "max-age=0")
-            connection.setRequestProperty("Sec-Ch-Ua", "\"Chromium\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\"")
-            connection.setRequestProperty("Sec-Ch-Ua-Mobile", "?0")
-            connection.setRequestProperty("Sec-Ch-Ua-Platform", "\"Windows\"")
-            connection.setRequestProperty("Sec-Fetch-Dest", "document")
-            connection.setRequestProperty("Sec-Fetch-Mode", "navigate")
-            connection.setRequestProperty("Sec-Fetch-Site", "none")
-            connection.setRequestProperty("Sec-Fetch-User", "?1")
-            connection.setRequestProperty("Upgrade-Insecure-Requests", "1")
+            connection.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8")
+            connection.setRequestProperty("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8")
 
             val responseCode = connection.responseCode
-            Log.d("Scraper", "Investidor10 ($ticker) Response: $responseCode")
-
-            if (responseCode == 403) {
-                Log.e("Scraper", "BLOQUEIO 403 no Investidor10. O site detectou o robô.")
-                return@withContext null
+            if (responseCode != 200) {
+                Log.d("Scraper", "Investidor10 ($category/$t) retornou status $responseCode")
+                return null
             }
-            if (responseCode != 200) return@withContext null
 
             val html = connection.inputStream.bufferedReader().use { it.readText() }
             val doc = Jsoup.parse(html)
             
-            val pageTitle = doc.select("h1").first()?.text() ?: ticker
+            // Tenta pegar o nome real ou usa o ticker como fallback
+            val pageTitle = doc.select("h1").first()?.text()?.replace(ticker, "")?.replace("-", "")?.trim() 
+            val finalName = if (pageTitle.isNullOrBlank()) ticker else pageTitle
 
-            // Seletor mais robusto para a grade de indicadores do Investidor 10
             fun findInGrid(label: String): String? {
-                // Tenta encontrar em divs que contenham o texto da label e um valor associado
-                val elements = doc.select("div:has(span:contains($label))")
-                for (element in elements) {
-                    val value = element.select(".value, ._card-value, strong").first()?.text()
-                    if (!value.isNullOrBlank()) return value
+                // Tenta seletores variados para os cards de indicadores
+                val selectors = listOf(
+                    "div:has(span:contains($label)) .value",
+                    "div:has(span:contains($label)) ._card-value",
+                    "div:has(span:contains($label)) strong",
+                    "span:contains($label) + span",
+                    ".desc:contains($label) + .value"
+                )
+                for (sel in selectors) {
+                    val v = doc.select(sel).first()?.text()
+                    if (!v.isNullOrBlank()) return v
                 }
-                // Tenta seletor genérico de labels
-                return doc.select("span:contains($label) + span, span:contains($label) + div").first()?.text()
+                return null
             }
 
-            // 1. Dados Principais
-            val price = parseDouble(findInGrid("COTAÇÃO") ?: findInGrid("PREÇO ATUAL"))
+            val price = parseDouble(findInGrid("COTAÇÃO") ?: findInGrid("PREÇO ATUAL") ?: doc.select(".value").first()?.text())
+            if (price <= 0.0) {
+                Log.d("Scraper", "Preço não encontrado para $t em $category")
+                return null
+            }
+
             val dy = parsePercentage(findInGrid("DY") ?: findInGrid("DIVIDEND YIELD"))
             val pvp = parseDouble(findInGrid("P/VP"))
             val pl = parseDouble(findInGrid("P/L"))
             val roe = parsePercentage(findInGrid("ROE"))
-
-            // 2. Dados Adicionais e Médias
-            val netMargin = parsePercentage(findInGrid("MARGEM LÍQUIDA"))
-            val debtToEquity = parseDouble(findInGrid("DÍVIDA LÍQUIDA / PATRIMÔNIO"))
-            val netWorth = parseLargeNumber(findInGrid("PATRIMÔNIO LÍQUIDO"))
-            
-            val dy5Str = findInGrid("DY MÉDIO (5 ANOS)") ?: findInGrid("DY MÉDIO 5 ANOS")
-            val dy5 = parsePercentage(dy5Str)
-
-            val graham = parseDouble(findInGrid("VALOR JUSTO (GRAHAM)"))
-            val bazin = parseDouble(findInGrid("PREÇO TETO (BAZIN)"))
-            
-            Log.d("Scraper", "Investidor10 Parsed -> P:$price, DY:$dy, DY5:$dy5, G:$graham, B:$bazin")
+            val netWorth = parseLargeNumber(findInGrid("PATRIMÔNIO LÍQUIDO") ?: findIndicatorValue(doc, "PATRIMÔNIO LÍQUIDO"))
 
             if (isFii) {
                 val vacancy = parsePercentage(findInGrid("VACÂNCIA") ?: findIndicatorValue(doc, "VACÂNCIA"))
                 val propertyCount = parseDouble(findInGrid("NÚMERO DE IMÓVEIS") ?: findInGrid("QTD DE IMÓVEIS") ?: findIndicatorValue(doc, "NÚMERO DE IMÓVEIS", "QTD DE IMÓVEIS")).toInt()
                 
-                // Busca profunda de ativos e caixa para alavancagem
                 val totalAssetsStr = findInGrid("ATIVOS") ?: findIndicatorValue(doc, "ATIVOS", "ATIVO TOTAL", "TOTAL DE ATIVOS")
                 val cashStr = findInGrid("DISPONIBILIDADES") ?: findInGrid("CAIXA") ?: findIndicatorValue(doc, "DISPONIBILIDADES", "CAIXA", "SALDO EM CAIXA", "DISPONÍVEL")
-                
                 val totalAssets = parseLargeNumber(totalAssetsStr)
                 val cash = parseLargeNumber(cashStr)
                 
                 val calculatedLeverage = if (totalAssets > 0 && (totalAssets - cash) > 0) {
                     (totalAssets - netWorth - cash) / (totalAssets - cash)
-                } else -1.0 // Sinaliza que não foi possível calcular
+                } else -1.0
 
-                AssetData.Fii(
-                    ticker = ticker, name = pageTitle, currentPrice = price, sector = "Imobiliário",
-                    pvp = pvp, vacancy = vacancy, yield12m = dy, ffoMargin = 0.8,
-                    multiProperty = propertyCount > 1, multiTenant = true, capRate = 0.08,
-                    weightedLeaseTerm = 5.0, managementFee = 0.01, 
+                return AssetData.Fii(
+                    ticker = ticker, name = finalName, currentPrice = price, sector = "FII",
+                    pvp = pvp, vacancy = vacancy, yield12m = dy, 
                     propertyCount = if (propertyCount > 0) propertyCount else 1, 
                     leverageValue = if (calculatedLeverage >= 0) calculatedLeverage else 0.0,
                     aum = netWorth
@@ -118,25 +121,30 @@ class Investidor10ScraperRepository : AssetRepository {
                     )
                     if (calculatedLeverage >= 0) mergedSources["lev"] = FieldSource.INTERNET
                     fieldSources = mergedSources
-                    val mocked = mutableSetOf<String>()
-                    if (price == 0.0) mocked.add("Preço Atual")
-                    if (pvp == 0.0) mocked.add("P/VP")
-                    if (dy == 0.0) mocked.add("Div. Yield (DY)")
-                    mockedFields = mocked
+                }
+            } else if (isEtf) {
+                return AssetData.Etf(
+                    ticker = ticker, name = finalName, currentPrice = price,
+                    adminFee = parsePercentage(findInGrid("TAXA DE ADMINISTRAÇÃO")),
+                    avgDailyVolume = parseLargeNumber(findInGrid("LIQUIDEZ DIÁRIA"))
+                ).apply {
+                    fieldSources = mapOf("name" to FieldSource.INTERNET, "currentPrice" to FieldSource.INTERNET)
                 }
             } else {
-                AssetData.Stock(
-                    ticker = ticker, name = pageTitle, currentPrice = price, sector = "Ações",
+                val netMargin = parsePercentage(findInGrid("MARGEM LÍQUIDA"))
+                val debtToEquity = parseDouble(findInGrid("DÍVIDA LÍQUIDA / PATRIMÔNIO"))
+                val dy5 = parsePercentage(findInGrid("DY MÉDIO (5 ANOS)") ?: findInGrid("DY MÉDIO 5 ANOS"))
+                val graham = parseDouble(findInGrid("VALOR JUSTO (GRAHAM)"))
+                val bazin = parseDouble(findInGrid("PREÇO TETO (BAZIN)"))
+
+                return AssetData.Stock(
+                    ticker = ticker, name = finalName, currentPrice = price, sector = "Ação",
                     lpa = if (pl > 0) price / pl else 1.0, 
                     vpa = if (pvp > 0) price / pvp else 1.0,
                     dividendYield5Years = if (dy5 > 0) dy5 else dy,
-                    paidDividendsLast5Years = true,
-                    netDebt = 0.0, ebitda = 1.0, netMargin = netMargin,
-                    cagrProfit5Years = 0.08, cagrRevenue5Years = 0.08,
-                    payout = 0.5, roe = roe, pvp = pvp, pl = pl, dividendYield = dy, 
+                    netMargin = netMargin, roe = roe, pvp = pvp, pl = pl, dividendYield = dy, 
                     debtToEquity = debtToEquity,
-                    grahamPrice = graham,
-                    bazinPrice = bazin,
+                    grahamPrice = graham, bazinPrice = bazin,
                     valuationSource = "Investidor10"
                 ).apply {
                     fieldSources = mapOf(
@@ -145,19 +153,14 @@ class Investidor10ScraperRepository : AssetRepository {
                         "dy" to FieldSource.INTERNET, "dy5" to FieldSource.INTERNET,
                         "ml" to FieldSource.INTERNET, "roe" to FieldSource.INTERNET,
                         "pl" to FieldSource.INTERNET, "pvp" to FieldSource.INTERNET,
-                        "de" to FieldSource.INTERNET, "payout" to FieldSource.INTERNET,
-                        "graham" to FieldSource.INTERNET, "bazin" to FieldSource.INTERNET
+                        "de" to FieldSource.INTERNET, "graham" to FieldSource.INTERNET, 
+                        "bazin" to FieldSource.INTERNET
                     )
-                    val mocked = mutableSetOf<String>()
-                    if (price == 0.0) mocked.add("Preço Atual")
-                    if (roe == 0.0) mocked.add("ROE")
-                    if (dy == 0.0) mocked.add("Div. Yield (DY)")
-                    mockedFields = mocked
                 }
             }
         } catch (e: Exception) {
-            Log.e("Scraper", "Erro ao acessar Investidor10: ${e.message}")
-            null
+            Log.e("Scraper", "Erro em fetchInternal ($category/$t): ${e.message}")
+            return null
         } finally {
             connection?.disconnect()
         }
@@ -167,12 +170,8 @@ class Investidor10ScraperRepository : AssetRepository {
         for (label in labels) {
             val cardValue = doc.select("._card:contains($label) ._card-value").first()?.text()
             if (!cardValue.isNullOrBlank()) return cardValue
-
             val gridValue = doc.select(".cell:has(span:contains($label)) .value, .item:has(span:contains($label)) .value, div:has(span:contains($label)) .value").first()?.text()
             if (!gridValue.isNullOrBlank()) return gridValue
-            
-            val listValue = doc.select("li:contains($label) .value, tr:contains($label) td:last-child").first()?.text()
-            if (!listValue.isNullOrBlank()) return listValue
         }
         return null
     }
@@ -180,24 +179,14 @@ class Investidor10ScraperRepository : AssetRepository {
     private fun parseDouble(text: String?): Double {
         if (text.isNullOrBlank() || text == "-") return 0.0
         return try {
-            text.replace("R$", "")
-                .replace(".", "")
-                .replace(",", ".")
-                .replace(Regex("[^0-9.-]"), "")
-                .trim()
-                .toDoubleOrNull() ?: 0.0
+            text.replace("R$", "").replace(".", "").replace(",", ".").replace(Regex("[^0-9.-]"), "").trim().toDoubleOrNull() ?: 0.0
         } catch (e: Exception) { 0.0 }
     }
 
     private fun parsePercentage(text: String?): Double {
         if (text.isNullOrBlank() || text == "-") return 0.0
         return try {
-            val value = text.replace("%", "")
-                .replace(".", "")
-                .replace(",", ".")
-                .replace(Regex("[^0-9.-]"), "")
-                .trim()
-                .toDoubleOrNull() ?: 0.0
+            val value = text.replace("%", "").replace(".", "").replace(",", ".").replace(Regex("[^0-9.-]"), "").trim().toDoubleOrNull() ?: 0.0
             value / 100.0
         } catch (e: Exception) { 0.0 }
     }

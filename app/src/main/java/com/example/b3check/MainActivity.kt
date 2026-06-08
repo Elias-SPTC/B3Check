@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -114,7 +115,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainContainer() {
-    var currentTab by remember { mutableIntStateOf(0) }
+    var currentTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -169,11 +170,29 @@ fun MainContainer() {
 fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () -> Unit = {}) {
     val assets by viewModel.allAssets.collectAsState()
     val context = LocalContext.current
-    var tickerToDelete by remember { mutableStateOf<String?>(null) }
-    var showIntegrityReport by remember { mutableStateOf(false) }
+    var tickerToDelete by rememberSaveable { mutableStateOf<String?>(null) }
+    var showIntegrityReport by rememberSaveable { mutableStateOf(false) }
+
+    // Carrega ativos apenas uma vez ao entrar na tela ou quando necessário
+    LaunchedEffect(Unit) {
+        viewModel.loadAllAssets()
+    }
 
     if (tickerToDelete != null) {
-        // ... (existing Delete AlertDialog)
+        AlertDialog(
+            onDismissRequest = { tickerToDelete = null },
+            title = { Text("Excluir Ativo") },
+            text = { Text("Tem certeza que deseja excluir o ativo $tickerToDelete?") },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.deleteAsset(tickerToDelete!!)
+                    tickerToDelete = null
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Excluir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { tickerToDelete = null }) { Text("Cancelar") }
+            }
+        )
     }
 
     if (showIntegrityReport) {
@@ -264,7 +283,7 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
             items(assets) { asset ->
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).clickable {
-                        viewModel.analyzeTicker(asset.ticker)
+                        viewModel.lookupTicker(asset.ticker)
                         onAssetClick()
                     }
                 ) {
@@ -342,7 +361,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
     // Otimização: Cache de portfólio para evitar filtros repetitivos no desenho da tela
     val portfolio = remember(assets) { assets.filter { it.isInPortfolio } }
     
-    var investAmount by remember { mutableStateOf("") }
+    var investAmount by rememberSaveable { mutableStateOf("") }
     val investSuggestions = remember { mutableStateMapOf<String, Double>() }
     val sharesToBuy = remember { mutableStateMapOf<String, Int>() }
     val editStates = remember { mutableStateMapOf<String, String>() }
@@ -555,7 +574,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
 fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
     val recs by viewModel.recommendations.collectAsState()
     val selectedTickers = remember { mutableStateMapOf<String, Boolean>() }
-    var investAmount by remember { mutableStateOf("") }
+    var investAmount by rememberSaveable { mutableStateOf("") }
 
     // Pre-calcula notas para evitar recálculos excessivos
     val scoredAssets = remember(recs) {
@@ -690,20 +709,16 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
 
 @Composable
 fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
-    var tickerInput by remember { mutableStateOf("") }
+    var tickerInput by rememberSaveable { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
-    var selectedAssetType by remember { mutableStateOf("Ação") }
 
-    // Sincroniza o tipo real do dado carregado
-    LaunchedEffect(uiState) {
-        if (uiState is StockUiState.Success) {
-            val data = (uiState as StockUiState.Success).data
-            selectedAssetType = when (data) {
-                is AssetData.Stock -> "Ação"
-                is AssetData.Fii -> "FII"
-                is AssetData.Etf -> "ETF"
-                is AssetData.Bdr -> "BDR"
-            }
+    // Busca automática quando o ticker atinge o tamanho padrão (4-6 chars)
+    LaunchedEffect(tickerInput) {
+        val t = tickerInput.trim().uppercase()
+        if (t.length >= 4) {
+            viewModel.lookupTicker(t)
+        } else if (t.isEmpty()) {
+            viewModel.resetAnalysis()
         }
     }
 
@@ -715,20 +730,18 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
             value = tickerInput,
             onValueChange = { tickerInput = it.uppercase() },
             label = { Text("Ticker (Ex: BBAS3, HGLG11)") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                if (tickerInput.isNotEmpty()) {
+                    IconButton(onClick = { tickerInput = ""; viewModel.resetAnalysis() }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Limpar", tint = Color.Gray)
+                    }
+                }
+            },
+            singleLine = true
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Button(
-            onClick = { viewModel.analyzeTicker(tickerInput, selectedAssetType) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = tickerInput.isNotBlank()
-        ) {
-            Text("Analisar Ativo")
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         when (val state = uiState) {
             is StockUiState.Loading -> CircularProgressIndicator()
@@ -738,13 +751,34 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
                     score = state.score,
                     onSave = { viewModel.saveManualAsset(it) },
                     onAnalyze = { viewModel.saveManualAsset(it) },
-                    onDelete = { viewModel.deleteAsset(it.ticker) }
+                    onDelete = { viewModel.deleteAsset(it.ticker); tickerInput = "" }
                 )
                 Spacer(modifier = Modifier.height(24.dp))
                 ScoreResult(state.data, state.score)
             }
-            is StockUiState.Error -> Text(text = state.message, color = MaterialTheme.colorScheme.error)
-            StockUiState.Idle -> Text("Digite um ticker para começar", color = Color.Gray)
+            is StockUiState.Error -> {
+                if (tickerInput.length >= 4) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Ativo não encontrado. Criar novo como:", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                Button(onClick = { viewModel.addManualAsset(tickerInput, "Ação") }) { Text("Ação") }
+                                Button(onClick = { viewModel.addManualAsset(tickerInput, "FII") }) { Text("FII") }
+                                Button(onClick = { viewModel.addManualAsset(tickerInput, "ETF") }) { Text("ETF") }
+                            }
+                        }
+                    }
+                }
+            }
+            StockUiState.Idle -> {
+                Box(modifier = Modifier.padding(top = 40.dp)) {
+                    Text("Digite um ticker para buscar ou cadastrar", color = Color.Gray, textAlign = TextAlign.Center)
+                }
+            }
         }
     }
 }
@@ -1227,9 +1261,15 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                             baselIndex = parseBR(indicatorStates["basel"] ?: "0") / 100.0,
                             grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0")
                         )
-                        // Marca indicadores editados
+                        // Marca indicadores editados apenas se houve mudança real ou se já era USER
                         listOf("lpa", "vpa", "pl", "pvp", "roe", "ml", "de", "deEbitda", "dy", "dy5", "payout", "basel", "graham", "bazin", "cLuc", "cRec").forEach { key ->
-                            if (indicatorStates.containsKey(key)) newSources[key] = FieldSource.USER
+                             if (indicatorStates.containsKey(key)) {
+                                 val currentValStr = indicatorStates[key] ?: ""
+                                 // Se o campo já era USER ou se o texto mudou, mantém/marca como USER
+                                 if (data.fieldSources?.get(key) == FieldSource.USER || currentValStr != formatBR(if(key=="roe"||key=="ml"||key=="dy"||key=="dy5"||key=="payout"||key=="basel") (data as? AssetData.Stock)?.let { getValByKey(it, key)*100 } ?: 0.0 else (data as? AssetData.Stock)?.let { getValByKey(it, key) } ?: 0.0, true)) {
+                                     newSources[key] = FieldSource.USER
+                                 }
+                             }
                         }
                         stock
                     }
@@ -1309,7 +1349,7 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
                 Icon(
                     imageVector = icon,
                     contentDescription = s.name,
-                    modifier = Modifier.padding(start = 4.dp).size(12.dp),
+                    modifier = Modifier.padding(start = 6.dp).size(16.dp),
                     tint = color.copy(alpha = 0.6f)
                 )
             }
@@ -1324,32 +1364,11 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
 }
 
 @Composable
-fun ScoreResult(data: AssetData, score: Double, viewModel: StockViewModel = viewModel()) {
-    val integrityWarnings = remember(data) { viewModel.getIntegrityWarnings(data) }
-
+fun ScoreResult(data: AssetData, score: Double) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("${data.ticker} - ${data.name}", fontWeight = FontWeight.Bold)
         Text("Nota: ${formatBR(score)} / 10", style = MaterialTheme.typography.headlineMedium)
         
-        if (integrityWarnings.isNotEmpty()) {
-            Surface(
-                color = Color(0xFFFFF3E0),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
-                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.List, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
-                        Text(" Avisos de Integridade", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
-                    }
-                    integrityWarnings.forEach { msg ->
-                        Text("• $msg", fontSize = 11.sp, color = Color(0xFF5D4037), modifier = Modifier.padding(top = 2.dp))
-                    }
-                }
-            }
-        }
-
         AssetDetails(data)
         ProsConsSection(data.pros, data.cons)
     }

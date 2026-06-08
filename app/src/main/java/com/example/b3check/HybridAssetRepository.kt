@@ -9,9 +9,13 @@ class HybridAssetRepository(
 ) : AssetRepository {
 
     override suspend fun getAssetData(ticker: String): AssetData? = coroutineScope {
-        // Dispara as duas buscas em paralelo para ganhar velocidade
-        val scraperDeferred = async { scraperRepo.getAssetData(ticker) }
-        val apiDeferred = async { apiRepo.getAssetData(ticker) }
+        // Dispara as duas buscas em paralelo
+        val scraperDeferred = async { 
+            try { scraperRepo.getAssetData(ticker) } catch(e: Exception) { null }
+        }
+        val apiDeferred = async { 
+            try { apiRepo.getAssetData(ticker) } catch(e: Exception) { null }
+        }
 
         val scraperData = scraperDeferred.await()
         val apiData = apiDeferred.await()
