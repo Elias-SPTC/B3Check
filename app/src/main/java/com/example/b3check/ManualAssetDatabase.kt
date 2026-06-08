@@ -45,11 +45,38 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         }
     }
 
+    private fun safeAsset(it: AssetData): AssetData {
+        val sources = it.fieldSources ?: emptyMap()
+        val asset = when(it) {
+            is AssetData.Stock -> it.copy(
+                sector = it.sector ?: "", subSector = it.subSector ?: "",
+                debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years,
+                baselIndex = it.baselIndex, dividendYield5Years = it.dividendYield5Years,
+                userScore = it.userScore, userScorePriority = it.userScorePriority
+            )
+            is AssetData.Fii -> it.copy(
+                sector = it.sector ?: "", subSector = it.subSector ?: "",
+                leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume,
+                vacancy = it.vacancy, propertyCount = it.propertyCount,
+                userScore = it.userScore, userScorePriority = it.userScorePriority
+            )
+            is AssetData.Etf -> it.copy(
+                sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
+                userScore = it.userScore, userScorePriority = it.userScorePriority
+            )
+            is AssetData.Bdr -> it.copy(
+                sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
+                userScore = it.userScore, userScorePriority = it.userScorePriority
+            )
+        }
+        asset.fieldSources = sources
+        return asset
+    }
+
     fun getAsset(ticker: String): AssetData? {
         return try {
             val db = readableDatabase
             val cursor = db.query("assets", arrayOf("type", "json_data"), "ticker = ?", arrayOf(ticker), null, null, null)
-            
             if (cursor.moveToFirst()) {
                 val type = cursor.getString(0)
                 val json = cursor.getString(1)
@@ -61,34 +88,13 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
                     else -> null
                 }
-                asset?.let {
-                    val sources = it.fieldSources ?: emptyMap()
-                    val safeAsset = when(it) {
-                        is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda)
-                        is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, leverageScore = it.leverageScore, leverageValue = it.leverageValue)
-                        is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
-                        is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
-                    }
-                    safeAsset.fieldSources = sources
-                    safeAsset
-                }
-            } else {
-                cursor.close()
-                null
-            }
-        } catch (e: Exception) {
-            Log.e("ManualDB", "Erro ao ler: ${e.message}")
-            null
-        }
+                asset?.let { safeAsset(it) }
+            } else { cursor.close(); null }
+        } catch (e: Exception) { null }
     }
 
     fun deleteAsset(ticker: String) {
-        try {
-            val db = writableDatabase
-            db.delete("assets", "ticker = ?", arrayOf(ticker))
-        } catch (e: Exception) {
-            Log.e("ManualDB", "Erro ao deletar: ${e.message}")
-        }
+        writableDatabase.delete("assets", "ticker = ?", arrayOf(ticker))
     }
 
     fun getAllAssets(): List<AssetData> {
@@ -106,37 +112,21 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                     "BDR" -> gson.fromJson(json, AssetData.Bdr::class.java)
                     else -> null
                 }
-                asset?.let { 
-                    val sources = it.fieldSources ?: emptyMap()
-                    // Garante que campos novos não venham nulos de backups antigos ou desserialização incompleta
-                    val safeAsset = when(it) {
-                        is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years, cagrRevenue5Years = it.cagrRevenue5Years)
-                        is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, leverageScore = it.leverageScore, leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume)
-                        is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
-                        is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
-                    }
-                    safeAsset.fieldSources = sources
-                    list.add(safeAsset)
-                }
+                asset?.let { list.add(safeAsset(it)) }
             }
             cursor.close()
-        } catch (e: Exception) {
-            Log.e("ManualDB", "Erro ao listar: ${e.message}")
-        }
+        } catch (e: Exception) {}
         return list
     }
 
     fun exportBackup(): String {
-        return try {
-            val list = mutableListOf<Map<String, String>>()
-            val db = readableDatabase
-            val cursor = db.query("assets", arrayOf("type", "json_data"), null, null, null, null, null)
-            while (cursor.moveToNext()) {
-                list.add(mapOf("type" to cursor.getString(0), "json" to cursor.getString(1)))
-            }
-            cursor.close()
-            gson.toJson(list)
-        } catch (e: Exception) { "" }
+        val list = mutableListOf<Map<String, String>>()
+        val cursor = readableDatabase.query("assets", arrayOf("type", "json_data"), null, null, null, null, null)
+        while (cursor.moveToNext()) {
+            list.add(mapOf("type" to cursor.getString(0), "json" to cursor.getString(1)))
+        }
+        cursor.close()
+        return gson.toJson(list)
     }
 
     fun importBackup(json: String): Boolean {
@@ -149,36 +139,17 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 data.forEach { item ->
                     val type = item["type"]
                     val jsonData = item["json"]
-                    if (type != null && jsonData != null) {
-                        val asset = when (type) {
-                            "STOCK" -> gson.fromJson(jsonData, AssetData.Stock::class.java)
-                            "FII" -> gson.fromJson(jsonData, AssetData.Fii::class.java)
-                            "ETF" -> gson.fromJson(jsonData, AssetData.Etf::class.java)
-                            "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
-                            else -> null
-                        }
-                        asset?.let {
-                            val sources = it.fieldSources ?: emptyMap()
-                            // Aplica a lógica de "Ativo Seguro" antes de salvar para evitar nulidades
-                            val safeAsset = when(it) {
-                                is AssetData.Stock -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years, cagrRevenue5Years = it.cagrRevenue5Years)
-                                is AssetData.Fii -> it.copy(sector = it.sector ?: "", subSector = it.subSector ?: "", sharesCount = it.sharesCount, leverageScore = it.leverageScore, leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume)
-                                is AssetData.Etf -> it.copy(sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF", sharesCount = it.sharesCount)
-                                is AssetData.Bdr -> it.copy(sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR", sharesCount = it.sharesCount)
-                            }
-                            safeAsset.fieldSources = sources
-                            saveAsset(safeAsset) 
-                        }
+                    val asset = when (type) {
+                        "STOCK" -> gson.fromJson(jsonData, AssetData.Stock::class.java)
+                        "FII" -> gson.fromJson(jsonData, AssetData.Fii::class.java)
+                        "ETF" -> gson.fromJson(jsonData, AssetData.Etf::class.java)
+                        "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
+                        else -> null
                     }
+                    asset?.let { saveAsset(safeAsset(it)) }
                 }
-                db.setTransactionSuccessful()
-                true
-            } finally {
-                db.endTransaction()
-            }
-        } catch (e: Exception) {
-            Log.e("ManualDB", "Erro ao importar: ${e.message}")
-            false
-        }
+                db.setTransactionSuccessful(); true
+            } finally { db.endTransaction() }
+        } catch (e: Exception) { false }
     }
 }

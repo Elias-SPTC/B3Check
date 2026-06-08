@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.b3check.ui.theme.B3CheckTheme
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 // Utilitários de formatação brasileiros
@@ -711,8 +714,16 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
 fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
     var tickerInput by rememberSaveable { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
+    val allAssets by viewModel.allAssets.collectAsState()
 
-    // Busca automática quando o ticker atinge o tamanho padrão (4-6 chars)
+    // Sincroniza o campo de busca quando o estado muda (ex: clique na lista ou swipe)
+    LaunchedEffect(uiState) {
+        if (uiState is StockUiState.Success) {
+            tickerInput = (uiState as StockUiState.Success).data.ticker
+        }
+    }
+
+    // Busca automática quando o ticker atinge o tamanho padrão
     LaunchedEffect(tickerInput) {
         val t = tickerInput.trim().uppercase()
         if (t.length >= 4) {
@@ -722,8 +733,35 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
         }
     }
 
+    fun navigate(next: Boolean) {
+        val currentTicker = (uiState as? StockUiState.Success)?.data?.ticker ?: ""
+        if (currentTicker.isEmpty() || allAssets.isEmpty()) return
+        
+        val index = allAssets.indexOfFirst { it.ticker == currentTicker }
+        if (index != -1) {
+            val newIndex = if (next) (index + 1) % allAssets.size else (index - 1 + allAssets.size) % allAssets.size
+            tickerInput = allAssets[newIndex].ticker
+        }
+    }
+
     Column(
-        modifier = Modifier.padding(16.dp).fillMaxWidth().verticalScroll(rememberScrollState()),
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .pointerInput(allAssets) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragEnd = {
+                        if (totalDrag > 250) navigate(false)
+                        else if (totalDrag < -250) navigate(true)
+                        totalDrag = 0f
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        totalDrag += dragAmount
+                    }
+                )
+            },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         OutlinedTextField(
@@ -746,6 +784,11 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
         when (val state = uiState) {
             is StockUiState.Loading -> CircularProgressIndicator()
             is StockUiState.Success -> {
+                // Informações do Ativo e Notas no Topo
+                ScoreHeader(state.data, state.score)
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 ManualEditor(
                     data = state.data,
                     score = state.score,
@@ -753,8 +796,6 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
                     onAnalyze = { viewModel.saveManualAsset(it) },
                     onDelete = { viewModel.deleteAsset(it.ticker); tickerInput = "" }
                 )
-                Spacer(modifier = Modifier.height(24.dp))
-                ScoreResult(state.data, state.score)
             }
             is StockUiState.Error -> {
                 if (tickerInput.length >= 4) {
@@ -780,6 +821,76 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel = viewModel()) {
+    val integrityWarnings = remember(data) { viewModel.getIntegrityWarnings(data) }
+    
+    // Calcula a nota pura do motor (sem a interferência do usuário) para exibição lado a lado
+    val motorScore = remember(data) { 
+        val rawData = when(data) {
+            is AssetData.Stock -> data.copy(userScore = 0.0, userScorePriority = false)
+            is AssetData.Fii -> data.copy(userScore = 0.0, userScorePriority = false)
+            is AssetData.Etf -> data.copy(userScore = 0.0, userScorePriority = false)
+            is AssetData.Bdr -> data.copy(userScore = 0.0, userScorePriority = false)
+        }
+        viewModel.calculateScoreForAsset(rawData)
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        Text(data.ticker, fontWeight = FontWeight.Black, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
+        Text(data.name, fontSize = 14.sp, color = Color.Gray, textAlign = TextAlign.Center)
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ScoreIndicator("Motor", motorScore, Color.Gray)
+            ScoreIndicator("Manual", data.userScore, MaterialTheme.colorScheme.secondary)
+            ScoreIndicator("Média", (motorScore + data.userScore)/2, Color(0xFF1976D2))
+            ScoreIndicator("FINAL", finalScore, if (finalScore >= 7) Color(0xFF2E7D32) else Color(0xFF1976D2), true)
+        }
+
+        if (integrityWarnings.isNotEmpty()) {
+            Surface(
+                color = Color(0xFFFFF3E0),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.padding(top = 12.dp).fillMaxWidth(),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
+                        Text(" Auditoria de Dados", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    }
+                    integrityWarnings.forEach { msg ->
+                        Text("• $msg", fontSize = 11.sp, color = Color(0xFF5D4037), modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        AssetDetails(data)
+        ProsConsSection(data.pros, data.cons)
+    }
+}
+
+@Composable
+fun ScoreIndicator(label: String, value: Double, color: Color, isMain: Boolean = false) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color.copy(alpha = 0.8f))
+        Text(
+            text = if (value > 0 || label == "Motor") formatBR(value) else "-",
+            fontSize = if (isMain) 22.sp else 16.sp,
+            fontWeight = if (isMain) FontWeight.Black else FontWeight.Bold,
+            color = color
+        )
     }
 }
 
@@ -960,6 +1071,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
 
     LaunchedEffect(data.ticker) {
         indicatorStates.clear()
+        indicatorStates["uScore"] = if(data.userScore > 0) formatBR(data.userScore) else ""
+        indicatorStates["uPrior"] = if(data.userScorePriority) "Sim" else "Não"
         if (data is AssetData.Stock) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true)
             indicatorStates["lpa"] = formatBR(data.lpa); indicatorStates["vpa"] = formatBR(data.vpa)
@@ -997,8 +1110,6 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Edição Manual", style = MaterialTheme.typography.titleMedium, color = Color(0xFF673AB7))
-        
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Já possuo na carteira", modifier = Modifier.weight(1f), fontSize = 14.sp)
             Switch(checked = inPortfolioState, onCheckedChange = { inPortfolioState = it })
@@ -1095,51 +1206,55 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         EditRow("Preço", priceState, true, source = data.fieldSources?.get("currentPrice")) { priceState = it }
         EditRow("Cotas", indicatorStates["cotas"] ?: "", true, source = data.fieldSources?.get("cotas")) { indicatorStates["cotas"] = it }
 
-        if (data is AssetData.Stock) {
-            EditRow("LPA", indicatorStates["lpa"] ?: "", true, data.fieldSources?.get("lpa")) { indicatorStates["lpa"] = it }
-            EditRow("VPA", indicatorStates["vpa"] ?: "", true, data.fieldSources?.get("vpa")) { indicatorStates["vpa"] = it }
-            EditRow("P/L", indicatorStates["pl"] ?: "", true, data.fieldSources?.get("pl")) { indicatorStates["pl"] = it }
-            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
-            EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, data.fieldSources?.get("roe")) { indicatorStates["roe"] = it }
-            
-            if (subSectorState != "Bancos") {
-                EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true, data.fieldSources?.get("ml")) { indicatorStates["ml"] = it }
-                EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true, data.fieldSources?.get("de")) { indicatorStates["de"] = it }
-                EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, data.fieldSources?.get("deEbitda")) { indicatorStates["deEbitda"] = it }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Minha Nota", modifier = Modifier.weight(1f), fontSize = 12.sp)
+            BasicTextField(
+                value = indicatorStates["uScore"] ?: "",
+                onValueChange = { indicatorStates["uScore"] = it },
+                modifier = Modifier.weight(0.8f).height(32.dp),
+                textStyle = TextStyle(fontSize = 13.sp, color = if(isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF1A237E), fontWeight = FontWeight.Bold),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                decorationBox = { inner -> Surface(shape = MaterialTheme.shapes.extraSmall, border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray)) { Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) { inner() } } }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = indicatorStates["uPrior"] == "Sim", onCheckedChange = { indicatorStates["uPrior"] = if(it) "Sim" else "Não" })
+                Text("Prioridade", fontSize = 11.sp)
             }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
 
-            EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true, source = data.fieldSources?.get("cLuc")) { indicatorStates["cLuc"] = it }
-            EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true, source = data.fieldSources?.get("cRec")) { indicatorStates["cRec"] = it }
-
-            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, data.fieldSources?.get("dy")) { indicatorStates["dy"] = it }
-            EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, data.fieldSources?.get("dy5")) { indicatorStates["dy5"] = it }
-            EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, data.fieldSources?.get("payout")) { indicatorStates["payout"] = it }
+        if (data is AssetData.Stock) {
+            EditRow("LPA", indicatorStates["lpa"] ?: "", true) { indicatorStates["lpa"] = it }
+            EditRow("VPA", indicatorStates["vpa"] ?: "", true) { indicatorStates["vpa"] = it }
+            EditRow("P/L", indicatorStates["pl"] ?: "", true) { indicatorStates["pl"] = it }
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true) { indicatorStates["pvp"] = it }
+            EditRow("ROE (%)", indicatorStates["roe"] ?: "", true) { indicatorStates["roe"] = it }
             
             if (subSectorState == "Bancos") {
-                EditRow("Índ. Basileia (%)", indicatorStates["basel"] ?: "", true, data.fieldSources?.get("basel")) { indicatorStates["basel"] = it }
+                EditRow("Basileia (%)", indicatorStates["basel"] ?: "", true) { indicatorStates["basel"] = it }
+            } else {
+                EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true) { indicatorStates["deEbitda"] = it }
+                EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true) { indicatorStates["ml"] = it }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            EditRow("Preço Graham", indicatorStates["graham"] ?: "", true, data.fieldSources?.get("graham")) { indicatorStates["graham"] = it }
-            EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true, data.fieldSources?.get("bazin")) { indicatorStates["bazin"] = it }
+
+            EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true) { indicatorStates["cLuc"] = it }
+            EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true) { indicatorStates["dy"] = it }
+            EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true) { indicatorStates["dy5"] = it }
+            EditRow("Payout (%)", indicatorStates["payout"] ?: "", true) { indicatorStates["payout"] = it }
         } else if (data is AssetData.Fii) {
             val isPaper = sectorState == "Papel" || subSectorState.contains("Recebíveis")
             val isFoF = subSectorState.contains("FOFs")
             val isShopping = subSectorState.contains("Shopping")
-            
-            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, data.fieldSources?.get("pvp")) { indicatorStates["pvp"] = it }
-            
-            if (!isPaper && !isFoF) {
-                EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, data.fieldSources?.get("vac")) { indicatorStates["vac"] = it }
-            }
-            
-            EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, data.fieldSources?.get("y12")) { indicatorStates["y12"] = it }
-            EditRow("DY 5a (%)", indicatorStates["y5"] ?: "", true, data.fieldSources?.get("y5")) { indicatorStates["y5"] = it }
-            
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, source = data.fieldSources?.get("vol")) { indicatorStates["vol"] = it }
-            
-            if (!isPaper && !isFoF) {
-                EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, data.fieldSources?.get("prop")) { indicatorStates["prop"] = it }
-            }
+
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true) { indicatorStates["pvp"] = it }
+            EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true) { indicatorStates["y12"] = it }
+            EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true) { indicatorStates["vac"] = it }
+            EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true) { indicatorStates["walt"] = it }
+            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }
+            EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true) { indicatorStates["aum"] = it }
+            EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true) { indicatorStates["prop"] = it }
                 
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
@@ -1248,6 +1363,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         val stock = data.copy(
                             name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
                             sharesCount = sharesNum,
+                            userScore = parseBR(indicatorStates["uScore"] ?: "0"),
+                            userScorePriority = indicatorStates["uPrior"] == "Sim",
                             lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"),
                             roe = parseBR(indicatorStates["roe"] ?: "0") / 100.0, dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0,
                             dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0") / 100.0, payout = parseBR(indicatorStates["payout"] ?: "0") / 100.0,
@@ -1277,6 +1394,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         val fii = data.copy(
                             name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState,
                             sharesCount = sharesNum,
+                            userScore = parseBR(indicatorStates["uScore"] ?: "0"),
+                            userScorePriority = indicatorStates["uPrior"] == "Sim",
                             pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0") / 100.0,
                             yield12m = parseBR(indicatorStates["y12"] ?: "0") / 100.0, avgYield5Years = parseBR(indicatorStates["y5"] ?: "0") / 100.0,
                             propertyCount = parseBR(indicatorStates["prop"] ?: "0").toInt(), 
@@ -1297,6 +1416,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         val etf = data.copy(
                             name = nameState, currentPrice = parseBR(priceState), sector = "ETF", subSector = "ETF", isInPortfolio = inPortfolioState,
                             sharesCount = sharesNum,
+                            userScore = parseBR(indicatorStates["uScore"] ?: "0"),
+                            userScorePriority = indicatorStates["uPrior"] == "Sim",
                             adminFee = parseBR(indicatorStates["aFee"] ?: "0") / 100.0, 
                             trackingError = parseBR(indicatorStates["te"] ?: "0") / 100.0,
                             avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0") * 1_000_000.0, numberOfHoldings = parseBR(indicatorStates["hold"] ?: "0").toInt()
@@ -1310,6 +1431,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         val bdr = data.copy(
                             name = nameState, currentPrice = parseBR(priceState), sector = "BDR", subSector = "BDR", isInPortfolio = inPortfolioState,
                             sharesCount = sharesNum,
+                            userScore = parseBR(indicatorStates["uScore"] ?: "0"),
+                            userScorePriority = indicatorStates["uPrior"] == "Sim",
                             dividendYield = parseBR(indicatorStates["dy"] ?: "0") / 100.0, parity = indicatorStates["par"] ?: "1:1"
                         )
                         listOf("dy", "par").forEach { key ->
@@ -1364,11 +1487,32 @@ fun EditRow(label: String, value: String, isNum: Boolean = false, source: FieldS
 }
 
 @Composable
-fun ScoreResult(data: AssetData, score: Double) {
+fun ScoreResult(data: AssetData, score: Double, viewModel: StockViewModel = viewModel()) {
+    val integrityWarnings = remember(data) { viewModel.getIntegrityWarnings(data) }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text("${data.ticker} - ${data.name}", fontWeight = FontWeight.Bold)
         Text("Nota: ${formatBR(score)} / 10", style = MaterialTheme.typography.headlineMedium)
         
+        if (integrityWarnings.isNotEmpty()) {
+            Surface(
+                color = Color(0xFFFFF3E0),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.padding(vertical = 8.dp).fillMaxWidth(),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFB74D))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
+                        Text(" Auditoria de Dados", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                    }
+                    integrityWarnings.forEach { msg ->
+                        Text("• $msg", fontSize = 11.sp, color = Color(0xFF5D4037), modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+        }
+
         AssetDetails(data)
         ProsConsSection(data.pros, data.cons)
     }

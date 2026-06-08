@@ -10,6 +10,8 @@ sealed class AssetData {
     abstract val subSector: String
     abstract val isInPortfolio: Boolean
     abstract val sharesCount: Double
+    abstract val userScore: Double
+    abstract val userScorePriority: Boolean
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet() // Para compatibilidade se necessário
@@ -36,14 +38,16 @@ sealed class AssetData {
         val pl: Double = 0.0,
         val dividendYield: Double = 0.0,
         val debtToEquity: Double = 0.0,
-        val debtToEbitda: Double = 0.0, // Novo parâmetro de alavancagem industrial
+        val debtToEbitda: Double = 0.0,
         val baselIndex: Double = 0.0,
         val defaultRate: Double = 0.0,
         val grahamPrice: Double = 0.0,
         val bazinPrice: Double = 0.0,
         val valuationSource: String = "",
         override val isInPortfolio: Boolean = false,
-        override val sharesCount: Double = 0.0
+        override val sharesCount: Double = 0.0,
+        override val userScore: Double = 0.0,
+        override val userScorePriority: Boolean = false
     ) : AssetData()
 
     data class Fii(
@@ -65,13 +69,15 @@ sealed class AssetData {
         val weightedLeaseTerm: Double = 0.0,
         val managementFee: Double = 0.0,
         val propertyCount: Int = 1,
-        val tenantScore: Int = 0, // 1-5, 0 desativa
-        val leverageScore: Int = 0, // 1-5, 0 desativa
+        val tenantScore: Int = 0,
+        val leverageScore: Int = 0,
         val leverageValue: Double = 0.0, 
-        val avgDailyVolume: Double = 0.0, // Novo: Liquidez para FIIs
+        val avgDailyVolume: Double = 0.0,
         val aum: Double = 0.0,
         override val isInPortfolio: Boolean = false,
-        override val sharesCount: Double = 0.0
+        override val sharesCount: Double = 0.0,
+        override val userScore: Double = 0.0,
+        override val userScorePriority: Boolean = false
     ) : AssetData()
 
     data class Etf(
@@ -88,7 +94,9 @@ sealed class AssetData {
         val numberOfHoldings: Int = 1,
         val isPassive: Boolean = true,
         override val isInPortfolio: Boolean = false,
-        override val sharesCount: Double = 0.0
+        override val sharesCount: Double = 0.0,
+        override val userScore: Double = 0.0,
+        override val userScorePriority: Boolean = false
     ) : AssetData()
 
     data class Bdr(
@@ -100,6 +108,8 @@ sealed class AssetData {
         val dividendYield: Double = 0.0,
         val parity: String = "1:1",
         override val isInPortfolio: Boolean = false,
-        override val sharesCount: Double = 0.0
+        override val sharesCount: Double = 0.0,
+        override val userScore: Double = 0.0,
+        override val userScorePriority: Boolean = false
     ) : AssetData()
 }
