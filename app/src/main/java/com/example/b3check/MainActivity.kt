@@ -233,8 +233,12 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).clickable { viewModel.lookupTicker(asset.ticker); onAssetClick() }) {
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(asset.ticker, fontWeight = FontWeight.Bold)
-                            Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(asset.ticker, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
+                            }
+                            Text(asset.name, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
                         }
                         IconButton(onClick = { tickerToDelete = asset.ticker }) { Icon(Icons.Default.Delete, null, tint = Color.Red) }
                     }
@@ -259,8 +263,8 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
             val curPerc = if (totalVal > 0) (curVal / totalVal) * 100.0 else 0.0
             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                 Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(asset.ticker, fontWeight = FontWeight.Bold)
-                    Text("Atual: ${formatBR(curPerc)}%  Ideal: ${formatBR(ideal)}%  Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
+                    Text(asset.ticker, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("Atual: ${formatBR(curPerc)}%  |  Ideal: ${formatBR(ideal)}%  |  Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
                 }
             }
         }
@@ -576,15 +580,22 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             indicatorStates["pl"] = formatBR(data.pl); indicatorStates["pvp"] = formatBR(data.pvp)
             indicatorStates["payout"] = formatBR(data.payout * 100); indicatorStates["basel"] = formatBR(data.baselIndex * 100)
             indicatorStates["graham"] = formatBR(data.grahamPrice); indicatorStates["bazin"] = formatBR(data.bazinPrice)
-            indicatorStates["cLuc"] = formatBR(data.cagrProfit5Years * 100); indicatorStates["cRec"] = formatBR(data.cagrRevenue5Years * 100)
+            indicatorStates["valSource"] = data.valuationSource
+            indicatorStates["cLuc"] = formatBR(data.cagrProfit5Years * 100)
+            indicatorStates["cRec"] = formatBR(data.cagrRevenue5Years * 100)
             indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0)
         } else if (data is AssetData.Fii) {
-            indicatorStates["cotas"] = formatBR(data.sharesCount, true); indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["vac"] = formatBR(data.vacancy * 100)
-            indicatorStates["y12"] = formatBR(data.yield12m * 100); indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0)
+            indicatorStates["cotas"] = formatBR(data.sharesCount, true)
+            indicatorStates["pvp"] = formatBR(data.pvp); indicatorStates["vac"] = formatBR(data.vacancy * 100)
+            indicatorStates["y12"] = formatBR(data.yield12m * 100); indicatorStates["y5"] = formatBR(data.avgYield5Years * 100)
+            indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0)
             indicatorStates["prop"] = data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
             indicatorStates["mFee"] = formatBR(data.managementFee * 100); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm)
-            indicatorStates["tScore"] = data.tenantScore.toString(); indicatorStates["lScore"] = data.leverageScore.toString()
             indicatorStates["mLev"] = formatBR(data.leverageValue * 100)
+            indicatorStates["mType"] = data.managementType
+            indicatorStates["multiT"] = if (data.multiTenant) "Sim" else "Não"
+            indicatorStates["tScore"] = data.tenantScore.toString()
+            indicatorStates["lScore"] = data.leverageScore.toString()
         } else if (data is AssetData.Etf) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true); indicatorStates["aFee"] = formatBR(data.adminFee * 100); indicatorStates["te"] = formatBR(data.trackingError * 100)
             indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0); indicatorStates["hold"] = data.numberOfHoldings.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0)
@@ -610,6 +621,85 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     )
     var showSectorMenu by remember { mutableStateOf(false) }
     var showSubSectorMenu by remember { mutableStateOf(false) }
+    var showTenantInfo by remember { mutableStateOf(false) }
+    var showLeverageInfo by remember { mutableStateOf(false) }
+
+    if (showTenantInfo) {
+        val fType = sectorState
+        val title = when {
+            fType == "Papel" || subSectorState.contains("Recebíveis") -> "Critérios de Devedores (Papel)"
+            subSectorState.contains("FOFs") -> "Critérios de Carteira (FoF)"
+            else -> "Critérios de Inquilinos (Tijolo)"
+        }
+        AlertDialog(
+            onDismissRequest = { showTenantInfo = false },
+            title = { Text(title) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (fType == "Papel" || subSectorState.contains("Recebíveis")) {
+                        Text("Nota 1: Concentração Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                        Text("1-3 Devedores ou maior emissor > 40% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("4 a 9 Devedores ou maior entre 25% a 40%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
+                        Text("10-20 Devedores e nenhum > 15% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("21-40 Devedores e maior < 10% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 40 Devedores e nenhum > 5% do PL.\n", fontSize = 12.sp)
+                    } else if (subSectorState.contains("FOFs")) {
+                        Text("Nota 1: Carteira Restrita (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                        Text("Concentrado em poucos fundos ou em uma única gestora.\n", fontSize = 12.sp)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("5 a 14 fundos ou maior concentração > 25%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Carteira Diversificada (Risco Médio)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 15 fundos de pelo menos 5 gestoras diferentes.\n", fontSize = 12.sp)
+                        Text("Nota 4: Boa Carteira (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 20 fundos de 10+ gestoras e nenhum > 10%.\n", fontSize = 12.sp)
+                        Text("Nota 5: Carteira Robusta (Risco Mínimo)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 25 fundos, alta liquidez e gestoras independentes.\n", fontSize = 12.sp)
+                    } else {
+                        Text("Nota 1: Monoinquilino (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                        Text("1 único inquilino ou maior inquilino > 50% da receita.\n", fontSize = 12.sp)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
+                        Text("2 a 5 inquilinos ou principal entre 30% a 50%.\n", fontSize = 12.sp)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
+                        Text("6 a 15 inquilinos e nenhum > 20% da receita.\n", fontSize = 12.sp)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
+                        Text("16 a 30 inquilinos e maior inquilino < 10%.\n", fontSize = 12.sp)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
+                        Text("Mais de 30 inquilinos e nenhum > 5% da receita.\n", fontSize = 12.sp)
+                    }
+                    Text("Nota 0: Desativa este parâmetro da análise.", fontSize = 11.sp, color = Color.Gray)
+                }
+            },
+            confirmButton = { Button(onClick = { showTenantInfo = false }) { Text("Entendi") } }
+        )
+    }
+
+    if (showLeverageInfo) {
+        AlertDialog(
+            onDismissRequest = { showLeverageInfo = false },
+            title = { Text("Critérios de Alavancagem") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Cálculo: (Ativo Total - PL - Caixa) / (Ativo Total - Caixa)\n", fontSize = 12.sp, color = Color(0xFF1976D2))
+                    Text("Nota 1: Alavancagem Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
+                    Text("> 40% do valor total dos ativos.\n", fontSize = 12.sp)
+                    Text("Nota 2: Alavancagem Alta (Risco Elevado)", fontWeight = FontWeight.Bold)
+                    Text("Entre 25% e 40% do valor dos ativos.\n", fontSize = 12.sp)
+                    Text("Nota 3: Alavancagem Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
+                    Text("Entre 15% e 25% (Padrão de mercado).\n", fontSize = 12.sp)
+                    Text("Nota 4: Alavancagem Baixa (Risco Baixo)", fontWeight = FontWeight.Bold)
+                    Text("Entre 5% e 15%. Equilíbrio saudável.\n", fontSize = 12.sp)
+                    Text("Nota 5: Alavancagem Mínima (Risco Mínimo)", fontWeight = FontWeight.Bold)
+                    Text("< 5% (Fundo conservador ou com muito caixa).\n", fontSize = 12.sp)
+                    Text("Nota 0: Desativa o critério manual.", fontSize = 11.sp, color = Color.Gray)
+                }
+            },
+            confirmButton = { Button(onClick = { showLeverageInfo = false }) { Text("Entendi") } }
+        )
+    }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) { Text("Carteira", modifier = Modifier.weight(1f)); Switch(checked = inPortfolioState, onCheckedChange = { inPortfolioState = it }) }
@@ -691,14 +781,69 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true) { indicatorStates["payout"] = it }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }; EditRow("Preço Graham", indicatorStates["graham"] ?: "", true) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true) { indicatorStates["bazin"] = it }
-        }
-else if (data is AssetData.Fii) {
+        } else if (data is AssetData.Fii) {
+            val isPaper = sectorState == "Papel" || subSectorState.contains("Recebíveis")
+            val isFoF = subSectorState.contains("FOFs")
+
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true) { indicatorStates["pvp"] = it }; EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true) { indicatorStates["y12"] = it }
-            EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true) { indicatorStates["vac"] = it }; EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true) { indicatorStates["walt"] = it }
+            
+            if (!isPaper && !isFoF) {
+                EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true) { indicatorStates["vac"] = it }
+                EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true) { indicatorStates["walt"] = it }
+                EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true) { indicatorStates["prop"] = it }
+            }
+
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true) { indicatorStates["aum"] = it }
-            EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true) { indicatorStates["prop"] = it }; EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true) { indicatorStates["mFee"] = it }
+            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true) { indicatorStates["mFee"] = it }
             EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true) { indicatorStates["mLev"] = it }
-        } else if (data is AssetData.Etf) {
+
+            // Nota Inquilino / Devedores
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    val label = when { isPaper -> "Nota Devedores"; isFoF -> "Nota Carteira"; else -> "Nota Inquilino" }
+                    Text(label, fontSize = 12.sp)
+                    IconButton(onClick = { showTenantInfo = true }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.Info, null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
+                    }
+                }
+                Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val current = (indicatorStates["tScore"] ?: "0").toInt()
+                    (0..5).forEach { score ->
+                        TextButton(onClick = { indicatorStates["tScore"] = score.toString() }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) {
+                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFF1976D2) else Color.Gray, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
+            // Nota Alavancagem
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Nota Alavancagem", fontSize = 12.sp)
+                    IconButton(onClick = { showLeverageInfo = true }, modifier = Modifier.size(18.dp)) {
+                        Icon(Icons.Default.Info, null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
+                    }
+                }
+                Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    val current = (indicatorStates["lScore"] ?: "0").toInt()
+                    (0..5).forEach { score ->
+                        TextButton(onClick = { indicatorStates["lScore"] = score.toString() }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) {
+                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFFD32F2F) else Color.Gray, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Gestão", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Row(modifier = Modifier.weight(1.8f)) {
+                    val current = indicatorStates["mType"] ?: "Ativa"
+                    TextButton(onClick = { indicatorStates["mType"] = "Ativa" }) { Text("Ativa", color = if(current=="Ativa") Color(0xFF1976D2) else Color.Gray) }
+                    TextButton(onClick = { indicatorStates["mType"] = "Passiva" }) { Text("Passiva", color = if(current=="Passiva") Color(0xFF1976D2) else Color.Gray) }
+                }
+            }
+        }
+else if (data is AssetData.Etf) {
             EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true) { indicatorStates["aum"] = it }; EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true) { indicatorStates["aFee"] = it }
             EditRow("Tracking Error (%)", indicatorStates["te"] ?: "", true) { indicatorStates["te"] = it }; EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }
             EditRow("Holdings", indicatorStates["hold"] ?: "", true) { indicatorStates["hold"] = it }
@@ -710,7 +855,7 @@ else if (data is AssetData.Fii) {
             Button(onClick = {
                 val updated = when (data) {
                     is AssetData.Stock -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"), roe = parseBR(indicatorStates["roe"] ?: "0")/100, dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0")/100, payout = parseBR(indicatorStates["payout"] ?: "0")/100, cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0")/100, cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0")/100, netMargin = parseBR(indicatorStates["ml"] ?: "0")/100, debtToEquity = parseBR(indicatorStates["de"] ?: "0"), debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"), pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"), baselIndex = parseBR(indicatorStates["basel"] ?: "0")/100, grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0"), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000)
-                    is AssetData.Fii -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0")/100, yield12m = parseBR(indicatorStates["y12"] ?: "0")/100, propertyCount = (indicatorStates["prop"] ?: "0").toInt(), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, managementFee = parseBR(indicatorStates["mFee"] ?: "0")/100, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"), leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100)
+                    is AssetData.Fii -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0")/100, yield12m = parseBR(indicatorStates["y12"] ?: "0")/100, propertyCount = (indicatorStates["prop"] ?: "0").toInt(), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, managementFee = parseBR(indicatorStates["mFee"] ?: "0")/100, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"), leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100, tenantScore = (indicatorStates["tScore"] ?: "0").toInt(), leverageScore = (indicatorStates["lScore"] ?: "0").toInt(), managementType = indicatorStates["mType"] ?: "Ativa")
                     is AssetData.Etf -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", adminFee = parseBR(indicatorStates["aFee"] ?: "0")/100, trackingError = parseBR(indicatorStates["te"] ?: "0")/100, avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, numberOfHoldings = (indicatorStates["hold"] ?: "0").toInt())
                     is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
                 }
@@ -750,12 +895,61 @@ fun EditRow(l: String, v: String, num: Boolean = false, onVal: (String) -> Unit)
 @Composable
 fun AssetDetails(data: AssetData) {
     Column {
-        DetailsRow("Preço", "R$ ${formatBR(data.currentPrice)}")
+        DetailsRow("Preço Atual", "R$ ${formatBR(data.currentPrice)}")
         if (data is AssetData.Stock) {
-            DetailsRow("P/VP", formatBR(data.pvp)); DetailsRow("ROE", formatBR(data.roe*100)+"%")
-            DetailsRow("Dív/EBITDA", formatBR(data.debtToEbitda))
+            val grahamPrice = if (data.grahamPrice > 0) data.grahamPrice else if (data.lpa > 0 && data.vpa > 0) sqrt(22.5 * data.lpa * data.vpa) else 0.0
+            val bazinPrice = if (data.bazinPrice > 0) data.bazinPrice else if (data.dividendYield5Years > 0) (data.dividendYield5Years * data.currentPrice) / 0.06 else 0.0
+            if (grahamPrice > 0) DetailsRow("Graham", "R$ ${formatBR(grahamPrice)}", if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
+            if (bazinPrice > 0) DetailsRow("Bazin", "R$ ${formatBR(bazinPrice)}", if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
+            Spacer(modifier = Modifier.height(8.dp))
+            DetailsRow("P/L", formatBR(data.pl))
+            DetailsRow("P/VP", formatBR(data.pvp))
+            DetailsRow("ROE", formatBR(data.roe * 100) + "%")
+            
+            if (data.subSector != "Bancos") {
+                DetailsRow("Margem Líq", formatBR(data.netMargin * 100) + "%")
+                DetailsRow("Dív/Patrim", formatBR(data.debtToEquity))
+                DetailsRow("Dív/EBITDA", formatBR(data.debtToEbitda))
+            } else {
+                DetailsRow("Índ. Basileia", formatBR(data.baselIndex * 100) + "%")
+            }
         } else if (data is AssetData.Fii) {
-            DetailsRow("P/VP", formatBR(data.pvp)); DetailsRow("Vacância", formatBR(data.vacancy*100)+"%")
+            val isPaper = data.sector == "Papel" || data.subSector.contains("Recebíveis")
+            val isFoF = data.subSector.contains("FOFs")
+            val isShopping = data.subSector.contains("Shopping")
+
+            DetailsRow("P/VP", formatBR(data.pvp))
+            DetailsRow("DY 12m", formatBR(data.yield12m * 100) + "%")
+            
+            if (data.leverageScore > 0) {
+                val levLabel = when(data.leverageScore) {
+                    5 -> "Mínima"
+                    4 -> "Baixa"
+                    3 -> "Moderada"
+                    2 -> "Alta"
+                    else -> "Crítica"
+                }
+                DetailsRow("Alavancagem", levLabel, if (data.leverageScore <= 2) Color.Red else Color.Unspecified)
+            } else if (data.leverageValue > 0) {
+                DetailsRow("Alavancagem (Auto)", formatBR(data.leverageValue * 100) + "%", if (data.leverageValue > 0.3) Color.Red else Color.Unspecified)
+            }
+            
+            if (!isPaper && !isFoF) {
+                DetailsRow("Vacância", formatBR(data.vacancy * 100) + "%", if (data.vacancy <= 0.05) Color(0xFF2E7D32) else Color.Red)
+            }
+            if (!isPaper && !isFoF && !isShopping) {
+                DetailsRow("WALT", formatBR(data.weightedLeaseTerm) + " anos")
+            }
+            if (!isPaper && !isFoF) {
+                DetailsRow("Imóveis", data.propertyCount.toString())
+            }
+        } else if (data is AssetData.Etf) {
+            DetailsRow("Taxa Adm", formatBR(data.adminFee * 100) + "%", if (data.adminFee <= 0.005) Color(0xFF2E7D32) else Color.Red)
+            DetailsRow("Vol. Diário", "M R$ ${formatBR(data.avgDailyVolume / 1_000_000.0)}")
+            DetailsRow("Holdings", data.numberOfHoldings.toString())
+        } else if (data is AssetData.Bdr) {
+            DetailsRow("DY Atual", formatBR(data.dividendYield * 100) + "%")
+            DetailsRow("Paridade", data.parity)
         }
     }
 }
