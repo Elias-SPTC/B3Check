@@ -680,7 +680,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("ROE (%)", indicatorStates["roe"] ?: "", true) { indicatorStates["roe"] = it }; EditRow("Margem Líq (%)", indicatorStates["ml"] ?: "", true) { indicatorStates["ml"] = it }
             EditRow("Dív/Patrim", indicatorStates["de"] ?: "", true) { indicatorStates["de"] = it }; EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true) { indicatorStates["deEbitda"] = it }
             
-            if (data.subSector.trim().lowercase().contains("bancos")) {
+            if (subSectorState.trim().lowercase().contains("bancos")) {
                 EditRow("Basileia (%)", indicatorStates["basel"] ?: "", true) { indicatorStates["basel"] = it }
             }
 
@@ -691,7 +691,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Payout (%)", indicatorStates["payout"] ?: "", true) { indicatorStates["payout"] = it }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }; EditRow("Preço Graham", indicatorStates["graham"] ?: "", true) { indicatorStates["graham"] = it }
             EditRow("Preço Bazin", indicatorStates["bazin"] ?: "", true) { indicatorStates["bazin"] = it }
-        } else if (data is AssetData.Fii) {
+        }
+else if (data is AssetData.Fii) {
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true) { indicatorStates["pvp"] = it }; EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true) { indicatorStates["y12"] = it }
             EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true) { indicatorStates["vac"] = it }; EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true) { indicatorStates["walt"] = it }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true) { indicatorStates["vol"] = it }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true) { indicatorStates["aum"] = it }

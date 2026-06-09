@@ -53,14 +53,17 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years,
                 baselIndex = it.baselIndex, dividendYield5Years = it.dividendYield5Years,
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
-                avgDailyVolume = it.avgDailyVolume
+                avgDailyVolume = it.avgDailyVolume, cagrRevenue5Years = it.cagrRevenue5Years,
+                grahamPrice = it.grahamPrice, bazinPrice = it.bazinPrice,
+                debtToEquity = it.debtToEquity, netMargin = it.netMargin, payout = it.payout
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
                 leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume,
                 vacancy = it.vacancy, propertyCount = it.propertyCount,
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
-                aum = it.aum, managementFee = it.managementFee, weightedLeaseTerm = it.weightedLeaseTerm
+                aum = it.aum, managementFee = it.managementFee, weightedLeaseTerm = it.weightedLeaseTerm,
+                tenantScore = it.tenantScore, leverageScore = it.leverageScore
             )
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
@@ -75,6 +78,8 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
             )
         }
         asset.fieldSources = sources
+        asset.pros = it.pros
+        asset.cons = it.cons
         return asset
     }
 
