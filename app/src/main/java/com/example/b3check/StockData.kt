@@ -44,6 +44,7 @@ sealed class AssetData {
         val grahamPrice: Double = 0.0,
         val bazinPrice: Double = 0.0,
         val valuationSource: String = "",
+        val avgDailyVolume: Double = 0.0,
         override val isInPortfolio: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,

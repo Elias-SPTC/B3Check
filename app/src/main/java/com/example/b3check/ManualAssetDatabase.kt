@@ -52,21 +52,26 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
                 debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years,
                 baselIndex = it.baselIndex, dividendYield5Years = it.dividendYield5Years,
-                userScore = it.userScore, userScorePriority = it.userScorePriority
+                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                avgDailyVolume = it.avgDailyVolume
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
                 leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume,
                 vacancy = it.vacancy, propertyCount = it.propertyCount,
-                userScore = it.userScore, userScorePriority = it.userScorePriority
+                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                aum = it.aum, managementFee = it.managementFee, weightedLeaseTerm = it.weightedLeaseTerm
             )
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
-                userScore = it.userScore, userScorePriority = it.userScorePriority
+                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                adminFee = it.adminFee, trackingError = it.trackingError,
+                avgDailyVolume = it.avgDailyVolume, aum = it.aum, numberOfHoldings = it.numberOfHoldings
             )
             is AssetData.Bdr -> it.copy(
                 sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
-                userScore = it.userScore, userScorePriority = it.userScorePriority
+                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                dividendYield = it.dividendYield, parity = it.parity ?: "1:1"
             )
         }
         asset.fieldSources = sources
