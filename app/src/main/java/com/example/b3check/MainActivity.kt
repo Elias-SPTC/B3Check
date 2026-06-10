@@ -255,17 +255,42 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
     val portfolio = remember(allAssets) { allAssets.filter { it.isInPortfolio } }
     val totalVal = remember(portfolio) { portfolio.sumOf { it.sharesCount * it.currentPrice } }
 
+    val equilibriumAmount = remember(portfolio, allocation) {
+        if (totalVal == 0.0 || allocation.isEmpty()) return@remember 0.0
+        val requiredTotals = portfolio.map { a ->
+            val idealP = allocation.find { it.first.ticker == a.ticker }?.second ?: 0.0
+            if (idealP > 0) (a.sharesCount * a.currentPrice) / (idealP / 100.0) else 0.0
+        }
+        val targetTotal = requiredTotals.maxOrNull() ?: 0.0
+        (targetTotal - totalVal).coerceAtLeast(0.0)
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Equilíbrio da Carteira", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
         Spacer(modifier = Modifier.height(16.dp))
         allocation.forEach { (asset, ideal) ->
             val curVal = asset.sharesCount * asset.currentPrice
             val curPerc = if (totalVal > 0) (curVal / totalVal) * 100.0 else 0.0
+            val curColor = if (curPerc < ideal) Color.Red else MaterialTheme.colorScheme.onSurface
+
             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                 Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(asset.ticker, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text("Atual: ${formatBR(curPerc)}%  |  Ideal: ${formatBR(ideal)}%  |  Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
+                    Text(
+                        text = AnnotatedString("Atual: ") + AnnotatedString(formatBR(curPerc) + "%", spanStyle = androidx.compose.ui.text.SpanStyle(color = curColor)) + 
+                               AnnotatedString("  |  Ideal: ${formatBR(ideal)}%  |  Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}"),
+                        fontSize = 12.sp
+                    )
                 }
+            }
+        }
+
+        if (equilibriumAmount > 0) {
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider()
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Para equilíbrio total é necessário:", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
+                Text("R$ ${formatBR(equilibriumAmount)}", fontSize = 12.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Black)
             }
         }
     }
@@ -391,6 +416,11 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                     Column(modifier = Modifier.weight(1.5f), horizontalAlignment = Alignment.End) {
                         if (qtySuggest > 0) { 
                             Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            if (qtySuggest >= 100 && asset is AssetData.Stock) {
+                                val lots = qtySuggest / 100
+                                val rem = qtySuggest % 100
+                                Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                            }
                             Text("R$ ${formatBR(valSuggest)}", fontSize = 9.sp, color = Color.Gray) 
                         } else Text("-", color = Color.Gray)
                     }
@@ -402,6 +432,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                 val totalCurrentVal = portfolio.sumOf { it.sharesCount * it.currentPrice }
                 val totalSugVal = suggestions.second.values.sum()
                 val totalSugQty = suggestions.first.values.sum()
+                
                 Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("TOTAIS", modifier = Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 12.sp)
                     Text("", modifier = Modifier.weight(1.2f))
@@ -479,6 +510,11 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                     if (qtySuggest > 0) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            if (qtySuggest >= 100 && asset is AssetData.Stock) {
+                                val lots = qtySuggest / 100
+                                val rem = qtySuggest % 100
+                                Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                            }
                             Text("R$ ${formatBR(qtySuggest * asset.currentPrice)}", fontSize = 10.sp, color = Color.Gray)
                         }
                     }
