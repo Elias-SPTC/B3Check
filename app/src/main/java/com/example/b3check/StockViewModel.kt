@@ -91,11 +91,20 @@ class StockViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun updatePortfolioAllocation(list: List<AssetData>) {
-        val p = list.filter { it.isInPortfolio }
-        val scored = p.map { it to calculateScoreForAsset(it) }
-        val total = scored.sumOf { it.second }
-        _portfolioAllocation.value = scored.map { (a, s) -> a to if (total > 0) (s / total) * 100.0 else 0.0 }
-            .sortedByDescending { it.second }
+        val portfolio = list.filter { it.isInPortfolio }
+        val activePortfolio = portfolio.filter { !it.isInert } // Ativos que não são inertes
+        
+        val scoredActive = activePortfolio.map { it to calculateScoreForAsset(it) }
+        val totalActiveScore = scoredActive.sumOf { it.second }
+        
+        _portfolioAllocation.value = portfolio.map { asset ->
+            if (asset.isInert) {
+                asset to 0.0 // Ativos inertes têm peso ideal 0%
+            } else {
+                val score = scoredActive.find { it.first.ticker == asset.ticker }?.second ?: 0.0
+                asset to if (totalActiveScore > 0) (score / totalActiveScore) * 100.0 else 0.0
+            }
+        }.sortedByDescending { it.second }
     }
 
     fun calculateScoreForAsset(data: AssetData): Double {

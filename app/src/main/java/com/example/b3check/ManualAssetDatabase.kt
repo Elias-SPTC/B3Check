@@ -55,7 +55,8 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
                 avgDailyVolume = it.avgDailyVolume, cagrRevenue5Years = it.cagrRevenue5Years,
                 grahamPrice = it.grahamPrice, bazinPrice = it.bazinPrice,
-                debtToEquity = it.debtToEquity, netMargin = it.netMargin, payout = it.payout
+                debtToEquity = it.debtToEquity, netMargin = it.netMargin, payout = it.payout,
+                isInert = it.isInert
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
@@ -63,18 +64,21 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 vacancy = it.vacancy, propertyCount = it.propertyCount,
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
                 aum = it.aum, managementFee = it.managementFee, weightedLeaseTerm = it.weightedLeaseTerm,
-                tenantScore = it.tenantScore, leverageScore = it.leverageScore
+                tenantScore = it.tenantScore, leverageScore = it.leverageScore,
+                isInert = it.isInert
             )
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
                 adminFee = it.adminFee, trackingError = it.trackingError,
-                avgDailyVolume = it.avgDailyVolume, aum = it.aum, numberOfHoldings = it.numberOfHoldings
+                avgDailyVolume = it.avgDailyVolume, aum = it.aum, numberOfHoldings = it.numberOfHoldings,
+                isInert = it.isInert
             )
             is AssetData.Bdr -> it.copy(
                 sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
-                dividendYield = it.dividendYield, parity = it.parity ?: "1:1"
+                dividendYield = it.dividendYield, parity = it.parity ?: "1:1",
+                isInert = it.isInert
             )
         }
         asset.fieldSources = sources

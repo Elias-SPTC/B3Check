@@ -9,12 +9,13 @@ sealed class AssetData {
     abstract val sector: String
     abstract val subSector: String
     abstract val isInPortfolio: Boolean
+    abstract val isInert: Boolean // NOVO: Ativo Inerte
     abstract val sharesCount: Double
     abstract val userScore: Double
     abstract val userScorePriority: Boolean
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
-    var mockedFields: Set<String> = emptySet() // Para compatibilidade se necessário
+    var mockedFields: Set<String> = emptySet()
     var fieldSources: Map<String, FieldSource>? = emptyMap()
 
     data class Stock(
@@ -46,6 +47,7 @@ sealed class AssetData {
         val valuationSource: String = "",
         val avgDailyVolume: Double = 0.0,
         override val isInPortfolio: Boolean = false,
+        override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
         override val userScorePriority: Boolean = false
@@ -76,6 +78,7 @@ sealed class AssetData {
         val avgDailyVolume: Double = 0.0,
         val aum: Double = 0.0,
         override val isInPortfolio: Boolean = false,
+        override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
         override val userScorePriority: Boolean = false
@@ -95,6 +98,7 @@ sealed class AssetData {
         val numberOfHoldings: Int = 1,
         val isPassive: Boolean = true,
         override val isInPortfolio: Boolean = false,
+        override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
         override val userScorePriority: Boolean = false
@@ -109,6 +113,7 @@ sealed class AssetData {
         val dividendYield: Double = 0.0,
         val parity: String = "1:1",
         override val isInPortfolio: Boolean = false,
+        override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
         override val userScorePriority: Boolean = false
