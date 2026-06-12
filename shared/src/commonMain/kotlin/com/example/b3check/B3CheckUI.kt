@@ -35,7 +35,7 @@ import kotlin.math.sqrt
 @Composable
 fun MainContainer(
     dataSource: AssetDataSource,
-    onExport: (String) -> Unit = {},
+    onExport: (json: String, defaultName: String) -> Unit = { _, _ -> },
     onImport: (onResult: (String) -> Unit) -> Unit = {}
 ) {
     val viewModel: StockViewModel = viewModel(
@@ -99,7 +99,7 @@ fun MainContainer(
 fun AssetListScreen(
     viewModel: StockViewModel, 
     onAssetClick: () -> Unit = {},
-    onExport: (String) -> Unit = {},
+    onExport: (String, String) -> Unit = { _, _ -> },
     onImport: (onResult: (String) -> Unit) -> Unit = {}
 ) {
     val assets by viewModel.allAssets.collectAsState()
@@ -167,7 +167,10 @@ fun AssetListScreen(
             Row {
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { onExport(viewModel.exportBackup()) }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { 
+                    val date = viewModel.getCurrentDate()
+                    onExport(viewModel.exportBackup(), "$date-B3Check.json") 
+                }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
                 IconButton(onClick = { onImport { viewModel.importBackup(it) } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
             }
         }
@@ -298,7 +301,7 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel) {
 fun InvestScreen(viewModel: StockViewModel) {
     val assets by viewModel.allAssets.collectAsState()
     val allocation by viewModel.portfolioAllocation.collectAsState()
-    val portfolio = remember(assets) { assets.filter { it.isInPortfolio } }
+    val portfolio = remember(assets) { assets.filter { it.isInPortfolio }.sortedBy { it.ticker } }
     var investAmount by rememberSaveable { mutableStateOf("") }
     val editStates = remember { mutableStateMapOf<String, String>() }
 
@@ -463,7 +466,11 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
     var investAmount by rememberSaveable { mutableStateOf("") }
     
     val scored = remember(recs) { recs.map { it to viewModel.calculateScoreForAsset(it) } }
-    val selScored = scored.filter { selected[it.first.ticker] == true }
+    // Garante que a UI também respeite a ordem de Nota DESC + Ticker ASC
+    val sortedScored = remember(scored) {
+        scored.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
+    }
+    val selScored = sortedScored.filter { selected[it.first.ticker] == true }
     val totalScore = selScored.sumOf { it.second }
     
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -472,7 +479,7 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
         Spacer(modifier = Modifier.height(8.dp))
         
         LazyColumn(modifier = Modifier.weight(1f)) {
-            itemsIndexed(scored) { index, (asset, score) ->
+            itemsIndexed(sortedScored) { index, (asset, score) ->
                 val qtySuggest = remember(totalScore, investAmount, selected[asset.ticker]) {
                     val amt = parseBR(investAmount)
                     if (amt > 0 && totalScore > 0 && selected[asset.ticker] == true) {

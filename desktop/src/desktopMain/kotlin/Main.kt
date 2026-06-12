@@ -11,9 +11,9 @@ fun main() = application {
     Window(onCloseRequest = ::exitApplication, title = "B3Check - Gestor Expert") {
         MainContainer(
             dataSource = dataSource,
-            onExport = { json ->
+            onExport = { json, defaultName ->
                 val fd = FileDialog(Frame(), "Exportar Backup", FileDialog.SAVE)
-                fd.file = "B3Check-Backup.json"
+                fd.file = defaultName
                 fd.isVisible = true
                 val file = fd.file
                 val dir = fd.directory

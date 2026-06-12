@@ -120,14 +120,15 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             is AssetData.Stock -> {
                 val sec = (data.sector ?: "").trim().lowercase()
                 val sub = (data.subSector ?: "").trim().lowercase()
+                val isBank = sub.contains("bancos") || sec.contains("financeiro") || data.ticker.uppercase().startsWith("ITUB") || data.ticker.uppercase().startsWith("BBAS") || data.ticker.uppercase().startsWith("SANB") || data.ticker.uppercase().startsWith("BBDC")
                 
                 // ROE
-                val roeMeta = if (sub.contains("bancos")) 0.08 else 0.14
+                val roeMeta = if (isBank) 0.08 else 0.14
                 if (data.roe >= roeMeta) { base += 2.5; prosList.add("ROE forte (>=${formatBR(roeMeta*100)}%)") }
                 else consList.add("ROE baixo (<${formatBR(roeMeta*100)}%)")
 
                 // Solvência
-                if (sub.contains("bancos")) {
+                if (isBank) {
                     if (data.baselIndex >= 0.14) { base += 2.5; prosList.add("Basileia sólida (>=14%)") }
                     else consList.add("Basileia fraca (<14%)")
                 } else {
@@ -197,6 +198,10 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
 
     fun exportBackup() = db.exportBackup()
     fun importBackup(j: String) { viewModelScope.launch { if (db.importBackup(j)) loadAllAssets() } }
+
+    fun getCurrentDate(): String {
+        return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    }
 
     private fun formatScore(v: Double): String = String.format(java.util.Locale("pt", "BR"), "%,.2f", v)
 }

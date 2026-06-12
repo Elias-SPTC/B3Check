@@ -44,8 +44,10 @@ class MainActivity : ComponentActivity() {
 
                 MainContainer(
                     dataSource = container.dataSource,
-                    onExport = { defaultName -> createDocumentLauncher.launch(defaultName) },
-                    onImport = { onResult -> 
+                    onExport = { _, defaultName -> 
+                        createDocumentLauncher.launch(defaultName) 
+                    },
+                    onImport = { _ ->
                         openDocumentLauncher.launch(arrayOf("application/json", "*/*"))
                     }
                 )
