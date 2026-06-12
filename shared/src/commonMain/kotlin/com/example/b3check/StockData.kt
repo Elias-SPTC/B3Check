@@ -9,7 +9,7 @@ sealed class AssetData {
     abstract val sector: String
     abstract val subSector: String
     abstract val isInPortfolio: Boolean
-    abstract val isInert: Boolean // NOVO: Ativo Inerte
+    abstract val isInert: Boolean 
     abstract val sharesCount: Double
     abstract val userScore: Double
     abstract val userScorePriority: Boolean

@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.util.Log
 import com.google.gson.Gson
 
-class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 3) {
+class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_assets.db", null, 3), AssetDataSource {
 
     private val gson = Gson()
 
@@ -26,18 +26,18 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         onCreate(db)
     }
 
-    fun saveAsset(data: AssetData) {
+    override fun saveAsset(asset: AssetData) {
         try {
             val db = writableDatabase
             val values = ContentValues().apply {
-                put("ticker", data.ticker)
-                put("type", when(data) {
+                put("ticker", asset.ticker)
+                put("type", when(asset) {
                     is AssetData.Stock -> "STOCK"
                     is AssetData.Fii -> "FII"
                     is AssetData.Etf -> "ETF"
                     is AssetData.Bdr -> "BDR"
                 })
-                put("json_data", gson.toJson(data))
+                put("json_data", gson.toJson(asset))
             }
             db.insertWithOnConflict("assets", null, values, SQLiteDatabase.CONFLICT_REPLACE)
         } catch (e: Exception) {
@@ -87,7 +87,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         return asset
     }
 
-    fun getAsset(ticker: String): AssetData? {
+    override fun getAsset(ticker: String): AssetData? {
         return try {
             val db = readableDatabase
             val cursor = db.query("assets", arrayOf("type", "json_data"), "ticker = ?", arrayOf(ticker), null, null, null)
@@ -107,11 +107,11 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         } catch (e: Exception) { null }
     }
 
-    fun deleteAsset(ticker: String) {
+    override fun deleteAsset(ticker: String) {
         writableDatabase.delete("assets", "ticker = ?", arrayOf(ticker))
     }
 
-    fun getAllAssets(): List<AssetData> {
+    override fun getAllAssets(): List<AssetData> {
         val list = mutableListOf<AssetData>()
         try {
             val db = readableDatabase
@@ -133,7 +133,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         return list
     }
 
-    fun exportBackup(): String {
+    override fun exportBackup(): String {
         val list = mutableListOf<Map<String, String>>()
         val cursor = readableDatabase.query("assets", arrayOf("type", "json_data"), null, null, null, null, null)
         while (cursor.moveToNext()) {
@@ -143,7 +143,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
         return gson.toJson(list)
     }
 
-    fun importBackup(json: String): Boolean {
+    override fun importBackup(json: String): Boolean {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
             val data: List<Map<String, String>> = gson.fromJson(json, typeToken)

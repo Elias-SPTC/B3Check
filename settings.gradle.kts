@@ -24,3 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "B3Check"
 include(":app")
+include(":shared")
+include(":desktop")
