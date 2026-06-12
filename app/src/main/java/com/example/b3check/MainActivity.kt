@@ -20,18 +20,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Science
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -129,7 +118,7 @@ fun MainContainer() {
                     selected = currentTab == 3,
                     onClick = { currentTab = 3 },
                     icon = { Icon(Icons.Default.Star, contentDescription = null) },
-                    label = { Text("Recomendadas", fontSize = 10.sp, maxLines = 1) }
+                    label = { Text("Recomendados", fontSize = 10.sp, maxLines = 1) }
                 )
                 NavigationBarItem(
                     selected = currentTab == 4,
@@ -158,6 +147,7 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
     val context = LocalContext.current
     var tickerToDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var showIntegrityReport by rememberSaveable { mutableStateOf(false) }
+    var showRecalcSuccess by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllAssets()
@@ -166,8 +156,8 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
     if (tickerToDelete != null) {
         AlertDialog(
             onDismissRequest = { tickerToDelete = null },
-            title = { Text("Excluir Ativo") },
-            text = { Text("Tem certeza que deseja excluir o ativo $tickerToDelete?") },
+            title = { Text("Excluir Ativo", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Tem certeza que deseja excluir o ativo $tickerToDelete?", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Button(onClick = {
                     viewModel.deleteAsset(tickerToDelete!!)
@@ -175,7 +165,7 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                 }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Excluir") }
             },
             dismissButton = {
-                TextButton(onClick = { tickerToDelete = null }) { Text("Cancelar") }
+                TextButton(onClick = { tickerToDelete = null }) { Text("Cancelar", color = MaterialTheme.colorScheme.primary) }
             }
         )
     }
@@ -187,20 +177,29 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
             title = { Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.List, null, tint = Color(0xFFE65100), modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Integridade")
+                Text("Integridade", color = MaterialTheme.colorScheme.onSurface)
             }},
             text = {
-                if (assetsWithIssues.isEmpty()) Text("✅ Tudo OK!")
+                if (assetsWithIssues.isEmpty()) Text("✅ Tudo OK!", color = MaterialTheme.colorScheme.onSurface)
                 else LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                     items(assetsWithIssues) { (asset, warnings) ->
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             Text(asset.ticker, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            warnings.forEach { Text("• $it", fontSize = 11.sp) }
+                            warnings.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
                         }
                     }
                 }
             },
             confirmButton = { Button(onClick = { showIntegrityReport = false }) { Text("Fechar") } }
+        )
+    }
+
+    if (showRecalcSuccess) {
+        AlertDialog(
+            onDismissRequest = { showRecalcSuccess = false },
+            title = { Text("Processamento", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("✅ Recálculo de todos os ativos concluído com sucesso!", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = { Button(onClick = { showRecalcSuccess = false }) { Text("Fechar") } }
         )
     }
 
@@ -222,12 +221,12 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Meus Ativos", style = MaterialTheme.typography.titleLarge)
+            Text("Meus Ativos", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Row {
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
-                IconButton(onClick = { viewModel.recalculateAllScores() }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { createDocumentLauncher.launch(defaultBackupName) }) { Icon(Icons.Default.Share, null) }
-                IconButton(onClick = { openDocumentLauncher.launch(arrayOf("application/json", "*/*")) }) { Icon(Icons.Default.Restore, null) }
+                IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = { createDocumentLauncher.launch(defaultBackupName) }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { openDocumentLauncher.launch(arrayOf("application/json", "*/*")) }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -237,18 +236,45 @@ fun AssetListScreen(viewModel: StockViewModel = viewModel(), onAssetClick: () ->
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(asset.ticker, fontWeight = FontWeight.Bold)
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp)
-                                if (asset.isInert) {
-                                    Surface(color = Color(0xFFEEEEEE), shape = MaterialTheme.shapes.extraSmall, modifier = Modifier.padding(start = 8.dp)) {
-                                        Text("INERTE", fontSize = 9.sp, color = Color.Gray, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), fontWeight = FontWeight.Bold)
-                                    }
-                                }
+                                Text("Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
-                            Text(asset.name, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
+                            Text(asset.name, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                         }
-                        IconButton(onClick = { tickerToDelete = asset.ticker }) { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                        
+                        // Ícones de Status
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Status Carteira (Alternável com um clique)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.clickable { 
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(isInPortfolio = !asset.isInPortfolio)
+                                    is AssetData.Fii -> asset.copy(isInPortfolio = !asset.isInPortfolio)
+                                    is AssetData.Etf -> asset.copy(isInPortfolio = !asset.isInPortfolio)
+                                    is AssetData.Bdr -> asset.copy(isInPortfolio = !asset.isInPortfolio)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            }) {
+                                Icon(Icons.Default.AccountBalanceWallet, null, modifier = Modifier.size(24.dp), tint = if(asset.isInPortfolio) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                                if(!asset.isInPortfolio) Icon(Icons.Default.Close, null, modifier = Modifier.size(24.dp), tint = Color.Red)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            // Status Inerte (Alternável com um clique)
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.clickable { 
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(isInert = !asset.isInert)
+                                    is AssetData.Fii -> asset.copy(isInert = !asset.isInert)
+                                    is AssetData.Etf -> asset.copy(isInert = !asset.isInert)
+                                    is AssetData.Bdr -> asset.copy(isInert = !asset.isInert)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            }) {
+                                Icon(Icons.Default.PauseCircle, null, modifier = Modifier.size(24.dp), tint = if(asset.isInert) Color(0xFFE65100) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f))
+                                if(!asset.isInert) Icon(Icons.Default.Close, null, modifier = Modifier.size(24.dp), tint = Color.Red)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(onClick = { tickerToDelete = asset.ticker }) { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                        }
                     }
                 }
             }
@@ -286,11 +312,11 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text(asset.ticker, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(asset.ticker, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             text = AnnotatedString("Atual: ") + AnnotatedString(formatBR(curPerc) + "%", spanStyle = androidx.compose.ui.text.SpanStyle(color = curColor)) + 
                                    AnnotatedString("  |  Ideal: ${formatBR(ideal)}%  |  Nota: ${formatBR(viewModel.calculateScoreForAsset(asset))}"),
-                            fontSize = 12.sp
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                     
@@ -309,8 +335,8 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
                                     " ($lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""})"
                                 } else ""
                                 
-                                Text(text = baseText + lotInfo, fontSize = 11.sp, color = Color.Gray)
-                                Text(text = "R$ ${formatBR(qtyToBuy * asset.currentPrice)}", fontSize = 11.sp, color = Color.Gray)
+                                Text(text = baseText + lotInfo, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Text(text = "${formatBR(qtyToBuy * asset.currentPrice)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }
@@ -320,10 +346,10 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel = viewModel()) {
 
         if (equilibriumAmount > 0) {
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider()
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Para equilíbrio total é necessário:", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Medium)
-                Text("R$ ${formatBR(equilibriumAmount)}", fontSize = 12.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Black)
+                Text("Para equilíbrio total é necessário:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                Text("${formatBR(equilibriumAmount)}", fontSize = 12.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Black)
             }
         }
     }
@@ -379,14 +405,14 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
-            Text("Ticker", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            Text("Cotas", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End)
-            Text("Preço", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End)
-            Text("Montante", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End)
-            Text("Sugestão", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End)
+            Text("Ticker", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text("Cotas", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Preço", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Montante", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Sugestão", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, fontSize = 11.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
         }
         
-        HorizontalDivider()
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             itemsIndexed(portfolio) { index, asset ->
@@ -396,7 +422,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                 val montante = asset.sharesCount * asset.currentPrice
                 
                 Row(modifier = Modifier.fillMaxWidth().background(rowBg).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(asset.ticker, modifier = Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(asset.ticker, modifier = Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     
                     // Coluna Cotas (Editável)
                     BasicTextField(
@@ -413,7 +439,7 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                             viewModel.saveManualAsset(updated)
                         },
                         modifier = Modifier.weight(1.2f),
-                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary),
+                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
 
@@ -432,17 +458,18 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                             viewModel.saveManualAsset(updated)
                         },
                         modifier = Modifier.weight(1.2f),
-                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary),
+                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
 
                     // Coluna Montante
                     Text(
-                        text = "R$ ${formatBR(montante)}",
+                        text = "${formatBR(montante)}",
                         modifier = Modifier.weight(1.5f),
                         textAlign = TextAlign.End,
                         fontSize = 12.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
                     )
 
                     // Coluna Sugestão
@@ -454,37 +481,41 @@ fun InvestScreen(viewModel: StockViewModel = viewModel()) {
                                 val rem = qtySuggest % 100
                                 Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
                             }
-                            Text("R$ ${formatBR(valSuggest)}", fontSize = 9.sp, color = Color.Gray) 
-                        } else Text("-", color = Color.Gray)
+                            Text("${formatBR(valSuggest)}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
+                        } else Text("-", color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
             
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface)
                 val totalCurrentVal = portfolio.sumOf { it.sharesCount * it.currentPrice }
                 val totalSugVal = suggestions.second.values.sum()
                 val totalSugQty = suggestions.first.values.sum()
                 
                 Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("TOTAIS", modifier = Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    Text("TOTAIS", modifier = Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     Text("", modifier = Modifier.weight(1.2f))
                     Text("", modifier = Modifier.weight(1.2f))
-                    Text("R$ ${formatBR(totalCurrentVal)}", modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text("${formatBR(totalCurrentVal)}", modifier = Modifier.weight(1.5f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                     Column(modifier = Modifier.weight(1.5f), horizontalAlignment = Alignment.End) {
                         Text("${totalSugQty} un", fontWeight = FontWeight.Black, fontSize = 13.sp, color = Color(0xFF2E7D32))
-                        Text("R$ ${formatBR(totalSugVal)}", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text("${formatBR(totalSugVal)}", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
         }
 
-        OutlinedTextField(
+        BasicTextField(
             value = investAmount, 
             onValueChange = { investAmount = it }, 
-            label = { Text("Novo aporte (R$)") }, 
-            modifier = Modifier.fillMaxWidth(), 
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            modifier = Modifier.fillMaxWidth().height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small).padding(8.dp),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            decorationBox = { inner ->
+                if (investAmount.isEmpty()) Text("Novo aporte", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 14.sp)
+                inner()
+            }
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -501,8 +532,8 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
     val totalScore = selScored.sumOf { it.second }
     
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Recomendadas", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
-        Text("Simule o aporte proporcional à nota dos ativos selecionados", fontSize = 12.sp, color = Color.Gray)
+        Text("Recomendados", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
+        Text("Simule o aporte proporcional à nota dos ativos selecionados", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
         Spacer(modifier = Modifier.height(8.dp))
         
         LazyColumn(modifier = Modifier.weight(1f)) {
@@ -532,9 +563,9 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                     verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isSelected, onCheckedChange = { selected[asset.ticker] = it })
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Nota: ${formatBR(score)}", fontSize = 11.sp)
+                            Text("Nota: ${formatBR(score)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                             if (pvp > 0) {
                                 Text(" • P/VP: ${formatBR(pvp)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                             }
@@ -548,19 +579,23 @@ fun RecommendationsScreen(viewModel: StockViewModel = viewModel()) {
                                 val rem = qtySuggest % 100
                                 Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
                             }
-                            Text("R$ ${formatBR(qtySuggest * asset.currentPrice)}", fontSize = 10.sp, color = Color.Gray)
+                            Text("${formatBR(qtySuggest * asset.currentPrice)}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
+        BasicTextField(
             value = investAmount, 
             onValueChange = { investAmount = it }, 
-            label = { Text("Simular aporte (R$)") }, 
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+            modifier = Modifier.fillMaxWidth().height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small).padding(8.dp),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            decorationBox = { inner ->
+                if (investAmount.isEmpty()) Text("Simular aporte", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), fontSize = 14.sp)
+                inner()
+            }
         )
     }
 }
@@ -584,7 +619,22 @@ fun StockAnalysisScreen(viewModel: StockViewModel = viewModel()) {
         var totalDrag = 0f
         detectHorizontalDragGestures(onDragEnd = { if (totalDrag > 250) navigate(false) else if (totalDrag < -250) navigate(true); totalDrag = 0f }, onHorizontalDrag = { _, amt -> totalDrag += amt })
     }) {
-        OutlinedTextField(value = tickerInput, onValueChange = { tickerInput = it.uppercase() }, label = { Text("Ticker") }, modifier = Modifier.fillMaxWidth(), trailingIcon = { if (tickerInput.isNotEmpty()) IconButton(onClick = { tickerInput = ""; viewModel.resetAnalysis() }) { Icon(Icons.Default.Delete, null) } })
+        BasicTextField(
+            value = tickerInput, 
+            onValueChange = { tickerInput = it.uppercase() }, 
+            modifier = Modifier.fillMaxWidth().height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small).padding(8.dp),
+            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Black),
+            singleLine = true,
+            decorationBox = { inner ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        if (tickerInput.isEmpty()) Text("Ticker", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                        inner()
+                    }
+                    if (tickerInput.isNotEmpty()) IconButton(onClick = { tickerInput = ""; viewModel.resetAnalysis() }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.onSurface) }
+                }
+            }
+        )
         Spacer(modifier = Modifier.height(16.dp))
         when (val state = uiState) {
             is StockUiState.Success -> { ScoreHeader(state.data, state.score); ManualEditor(state.data, state.score, { viewModel.saveManualAsset(it) }, {}, { viewModel.deleteAsset(it.ticker); tickerInput = "" }) }
@@ -608,9 +658,9 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel =
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text(data.ticker, fontWeight = FontWeight.Black, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
-        Text(data.name, fontSize = 14.sp, color = Color.Gray)
+        Text(data.name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            ScoreIndicator("Motor", motorScore, Color.Gray)
+            ScoreIndicator("Motor", motorScore, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             ScoreIndicator("Manual", data.userScore, MaterialTheme.colorScheme.secondary)
             ScoreIndicator("Média", (motorScore + data.userScore)/2.0, Color(0xFF1976D2))
             ScoreIndicator("FINAL", finalScore, Color(0xFF2E7D32), true)
@@ -623,7 +673,7 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel =
 @Composable
 fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c.copy(alpha = 0.8f))
+        Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
         Text(formatBR(v), fontSize = if (main) 22.sp else 16.sp, fontWeight = FontWeight.Bold, color = c)
     }
 }
@@ -703,44 +753,43 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         }
         AlertDialog(
             onDismissRequest = { showTenantInfo = false },
-            title = { Text(title) },
+            title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     if (fType == "Papel" || subSectorState.contains("Recebíveis")) {
-                        Text("Nota 1: Concentração Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
-                        Text("1-3 Devedores ou maior emissor > 40% do PL.\n", fontSize = 12.sp)
-                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
-                        Text("4 a 9 Devedores ou maior entre 25% a 40%.\n", fontSize = 12.sp)
-                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
-                        Text("10-20 Devedores e nenhum > 15% do PL.\n", fontSize = 12.sp)
-                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
-                        Text("21-40 Devedores e maior < 10% do PL.\n", fontSize = 12.sp)
-                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
-                        Text("Mais de 40 Devedores e nenhum > 5% do PL.\n", fontSize = 12.sp)
+                        Text("Nota 1: Concentração Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("1-3 Devedores ou maior emissor > 40% do PL.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("4 a 9 Devedores ou maior entre 25% a 40%.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("10-20 Devedores e nenhum > 15% do PL.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("21-40 Devedores e maior < 10% do PL.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Mais de 40 Devedores e nenhum > 5% do PL.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     } else if (subSectorState.contains("FOFs")) {
-                        Text("Nota 1: Carteira Restrita (Risco Altíssimo)", fontWeight = FontWeight.Bold)
-                        Text("Concentrado em poucos fundos ou em uma única gestora.\n", fontSize = 12.sp)
-                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
-                        Text("5 a 14 fundos ou maior concentração > 25%.\n", fontSize = 12.sp)
-                        Text("Nota 3: Carteira Diversificada (Risco Médio)", fontWeight = FontWeight.Bold)
-                        Text("Mais de 15 fundos de pelo menos 5 gestoras diferentes.\n", fontSize = 12.sp)
-                        Text("Nota 4: Boa Carteira (Risco Baixo)", fontWeight = FontWeight.Bold)
-                        Text("Mais de 20 fundos de 10+ gestoras e nenhum > 10%.\n", fontSize = 12.sp)
-                        Text("Nota 5: Carteira Robusta (Risco Mínimo)", fontWeight = FontWeight.Bold)
-                        Text("Mais de 25 fundos, alta liquidez e gestoras independentes.\n", fontSize = 12.sp)
+                        Text("Nota 1: Carteira Restrita (Risco Altíssimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Concentrado em poucos fundos ou em uma única gestora.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("5 a 14 fundos ou maior concentração > 25%.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 3: Carteira Diversificada (Risco Médio)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Mais de 15 fundos de pelo menos 5 gestoras diferentes.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 4: Boa Carteira (Risco Baixo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Mais de 20 fundos de 10+ gestoras e nenhum > 10%.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 5: Carteira Robusta (Risco Mínimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Mais de 25 fundos, alta liquidez e gestoras independentes.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     } else {
-                        Text("Nota 1: Monoinquilino (Risco Altíssimo)", fontWeight = FontWeight.Bold)
-                        Text("1 único inquilino ou maior inquilino > 50% da receita.\n", fontSize = 12.sp)
-                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold)
-                        Text("2 a 5 inquilinos ou principal entre 30% a 50%.\n", fontSize = 12.sp)
-                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
-                        Text("6 a 15 inquilinos e nenhum > 20% da receita.\n", fontSize = 12.sp)
-                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold)
-                        Text("16 a 30 inquilinos e maior inquilino < 10%.\n", fontSize = 12.sp)
-                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold)
-                        Text("Mais de 30 inquilinos e nenhum > 5% da receita.\n", fontSize = 12.sp)
+                        Text("Nota 1: Monoinquilino (Risco Altíssimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("1 único inquilino ou maior inquilino > 50% da receita.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 2: Baixa Diversificação (Risco Alto)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("2 a 5 inquilinos ou principal entre 30% a 50%.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 3: Diversificação Moderada (Risco Médio)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("6 a 15 inquilinos e nenhum > 20% da receita.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 4: Boa Diversificação (Risco Baixo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("16 a 30 inquilinos e maior inquilino < 10%.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Nota 5: Excelente (Pulverizado) (Risco Mínimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("Mais de 30 inquilinos e nenhum > 5% da receita.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Text("Nota 0: Desativa este parâmetro da análise.", fontSize = 11.sp, color = Color.Gray)
                 }
             },
             confirmButton = { Button(onClick = { showTenantInfo = false }) { Text("Entendi") } }
@@ -750,21 +799,20 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     if (showLeverageInfo) {
         AlertDialog(
             onDismissRequest = { showLeverageInfo = false },
-            title = { Text("Critérios de Alavancagem") },
+            title = { Text("Critérios de Alavancagem", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("Cálculo: (Ativo Total - PL - Caixa) / (Ativo Total - Caixa)\n", fontSize = 12.sp, color = Color(0xFF1976D2))
-                    Text("Nota 1: Alavancagem Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold)
-                    Text("> 40% do valor total dos ativos.\n", fontSize = 12.sp)
-                    Text("Nota 2: Alavancagem Alta (Risco Elevado)", fontWeight = FontWeight.Bold)
-                    Text("Entre 25% e 40% do valor dos ativos.\n", fontSize = 12.sp)
-                    Text("Nota 3: Alavancagem Moderada (Risco Médio)", fontWeight = FontWeight.Bold)
-                    Text("Entre 15% e 25% (Padrão de mercado).\n", fontSize = 12.sp)
-                    Text("Nota 4: Alavancagem Baixa (Risco Baixo)", fontWeight = FontWeight.Bold)
-                    Text("Entre 5% e 15%. Equilíbrio saudável.\n", fontSize = 12.sp)
-                    Text("Nota 5: Alavancagem Mínima (Risco Mínimo)", fontWeight = FontWeight.Bold)
-                    Text("< 5% (Fundo conservador ou com muito caixa).\n", fontSize = 12.sp)
-                    Text("Nota 0: Desativa o critério manual.", fontSize = 11.sp, color = Color.Gray)
+                    Text("Nota 1: Alavancagem Crítica (Risco Altíssimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("> 40% do valor total dos ativos.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Nota 2: Alavancagem Alta (Risco Elevado)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Entre 25% e 40% do valor dos ativos.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Nota 3: Alavancagem Moderada (Risco Médio)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Entre 15% e 25% (Padrão de mercado).\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Nota 4: Alavancagem Baixa (Risco Baixo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Entre 5% e 15%. Equilíbrio saudável.\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text("Nota 5: Alavancagem Mínima (Risco Mínimo)", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text("< 5% (Fundo conservador ou com muito caixa).\n", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
             },
             confirmButton = { Button(onClick = { showLeverageInfo = false }) { Text("Entendi") } }
@@ -772,9 +820,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     }
 
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) { Text("Carteira", modifier = Modifier.weight(1f)); Switch(checked = inPortfolioState, onCheckedChange = { inPortfolioState = it }) }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Carteira", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface); Switch(checked = inPortfolioState, onCheckedChange = { inPortfolioState = it }) }
         Row(verticalAlignment = Alignment.CenterVertically) { 
-            Text("Ativo Inerte (Ignorar em Aportes)", modifier = Modifier.weight(1f), fontSize = 14.sp)
+            Text("Ativo Inerte (Ignorar em Aportes)", modifier = Modifier.weight(1f), fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
             Switch(checked = isInertState, onCheckedChange = { isInertState = it }) 
         }
         
@@ -782,7 +830,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             val currentMap = if (data is AssetData.Stock) stockClassification else fiiClassification
             
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Setor", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Text("Setor", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                 Box(modifier = Modifier.weight(1.8f)) {
                     OutlinedButton(
                         onClick = { showSectorMenu = true },
@@ -790,17 +838,17 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         shape = MaterialTheme.shapes.extraSmall
                     ) {
-                        Text(if (sectorState.isBlank()) "Selecionar" else sectorState, fontSize = 13.sp)
+                        Text(if (sectorState.isBlank()) "Selecionar" else sectorState, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                     DropdownMenu(expanded = showSectorMenu, onDismissRequest = { showSectorMenu = false }) {
-                        currentMap.keys.forEach { s -> DropdownMenuItem(text = { Text(s) }, onClick = { sectorState = s; subSectorState = ""; showSectorMenu = false }) }
+                        currentMap.keys.forEach { s -> DropdownMenuItem(text = { Text(s, color = MaterialTheme.colorScheme.onSurface) }, onClick = { sectorState = s; subSectorState = ""; showSectorMenu = false }) }
                     }
                 }
             }
 
             if (sectorState.isNotBlank()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Subsetor", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Text("Subsetor", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     Box(modifier = Modifier.weight(1.8f)) {
                         OutlinedButton(
                             onClick = { showSubSectorMenu = true },
@@ -808,10 +856,10 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             shape = MaterialTheme.shapes.extraSmall
                         ) {
-                            Text(if (subSectorState.isBlank()) "Selecionar" else subSectorState, fontSize = 13.sp)
+                            Text(if (subSectorState.isBlank()) "Selecionar" else subSectorState, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
                         DropdownMenu(expanded = showSubSectorMenu, onDismissRequest = { showSubSectorMenu = false }) {
-                            currentMap[sectorState]?.forEach { ss -> DropdownMenuItem(text = { Text(ss) }, onClick = { subSectorState = ss; showSubSectorMenu = false }) }
+                            currentMap[sectorState]?.forEach { ss -> DropdownMenuItem(text = { Text(ss, color = MaterialTheme.colorScheme.onSurface) }, onClick = { subSectorState = ss; showSubSectorMenu = false }) }
                         }
                     }
                 }
@@ -824,17 +872,17 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Minha Nota", modifier = Modifier.weight(1f), fontSize = 12.sp)
+            Text("Minha Nota", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
             BasicTextField(
                 value = indicatorStates["uScore"] ?: "", 
                 onValueChange = { indicatorStates["uScore"] = it }, 
                 modifier = Modifier.weight(0.8f).height(32.dp), 
                 textStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface), 
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), 
-                decorationBox = { inner -> Surface(shape = MaterialTheme.shapes.extraSmall, border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray)) { Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) { inner() } } }
+                decorationBox = { inner -> Surface(shape = MaterialTheme.shapes.extraSmall, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)) { Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) { inner() } } }
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = indicatorStates["uPrior"] == "Sim", onCheckedChange = { indicatorStates["uPrior"] = if(it) "Sim" else "Não" }); Text("Prioridade", fontSize = 11.sp) }
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = indicatorStates["uPrior"] == "Sim", onCheckedChange = { indicatorStates["uPrior"] = if(it) "Sim" else "Não" }); Text("Prioridade", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -875,7 +923,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     val label = when { isPaper -> "Nota Devedores"; isFoF -> "Nota Carteira"; else -> "Nota Inquilino" }
-                    Text(label, fontSize = 12.sp)
+                    Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     IconButton(onClick = { showTenantInfo = true }, modifier = Modifier.size(18.dp)) {
                         Icon(Icons.Default.Info, null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
                     }
@@ -884,7 +932,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                     val current = (indicatorStates["tScore"] ?: "0").toInt()
                     (0..5).forEach { score ->
                         TextButton(onClick = { indicatorStates["tScore"] = score.toString() }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) {
-                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFF1976D2) else Color.Gray, fontSize = 13.sp)
+                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
                         }
                     }
                 }
@@ -893,7 +941,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             // Nota Alavancagem
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Nota Alavancagem", fontSize = 12.sp)
+                    Text("Nota Alavancagem", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                     IconButton(onClick = { showLeverageInfo = true }, modifier = Modifier.size(18.dp)) {
                         Icon(Icons.Default.Info, null, tint = Color(0xFF1976D2), modifier = Modifier.size(14.dp))
                     }
@@ -902,18 +950,18 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                     val current = (indicatorStates["lScore"] ?: "0").toInt()
                     (0..5).forEach { score ->
                         TextButton(onClick = { indicatorStates["lScore"] = score.toString() }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) {
-                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFFD32F2F) else Color.Gray, fontSize = 13.sp)
+                            Text(text = score.toString(), fontWeight = if (current == score) FontWeight.Bold else FontWeight.Normal, color = if (current == score) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
                         }
                     }
                 }
             }
 
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Gestão", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Text("Gestão", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                 Row(modifier = Modifier.weight(1.8f)) {
                     val current = indicatorStates["mType"] ?: "Ativa"
-                    TextButton(onClick = { indicatorStates["mType"] = "Ativa" }) { Text("Ativa", color = if(current=="Ativa") Color(0xFF1976D2) else Color.Gray) }
-                    TextButton(onClick = { indicatorStates["mType"] = "Passiva" }) { Text("Passiva", color = if(current=="Passiva") Color(0xFF1976D2) else Color.Gray) }
+                    TextButton(onClick = { indicatorStates["mType"] = "Ativa" }) { Text("Ativa", color = if(current=="Ativa") Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface) }
+                    TextButton(onClick = { indicatorStates["mType"] = "Passiva" }) { Text("Passiva", color = if(current=="Passiva") Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface) }
                 }
             }
         }
@@ -944,18 +992,18 @@ else if (data is AssetData.Etf) {
 @Composable
 fun EditRow(l: String, v: String, num: Boolean = false, onVal: (String) -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(l, modifier = Modifier.weight(1f), fontSize = 12.sp)
+        Text(l, modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
         BasicTextField(
             value = v,
             onValueChange = onVal,
             modifier = Modifier.weight(1.8f).height(32.dp),
-            textStyle = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface),
+            textStyle = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold),
             keyboardOptions = if(num) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
             singleLine = true,
             decorationBox = { inner ->
                 Surface(
                     shape = MaterialTheme.shapes.extraSmall,
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.Gray.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(0.5.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                 ) {
                     Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                         inner()
@@ -969,12 +1017,12 @@ fun EditRow(l: String, v: String, num: Boolean = false, onVal: (String) -> Unit)
 @Composable
 fun AssetDetails(data: AssetData) {
     Column {
-        DetailsRow("Preço Atual", "R$ ${formatBR(data.currentPrice)}")
+        DetailsRow("Preço Atual", "${formatBR(data.currentPrice)}")
         if (data is AssetData.Stock) {
             val grahamPrice = if (data.grahamPrice > 0) data.grahamPrice else if (data.lpa > 0 && data.vpa > 0) sqrt(22.5 * data.lpa * data.vpa) else 0.0
             val bazinPrice = if (data.bazinPrice > 0) data.bazinPrice else if (data.dividendYield5Years > 0) (data.dividendYield5Years * data.currentPrice) / 0.06 else 0.0
-            if (grahamPrice > 0) DetailsRow("Graham", "R$ ${formatBR(grahamPrice)}", if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
-            if (bazinPrice > 0) DetailsRow("Bazin", "R$ ${formatBR(bazinPrice)}", if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
+            if (grahamPrice > 0) DetailsRow("Graham", "${formatBR(grahamPrice)}", if (data.currentPrice <= grahamPrice) Color(0xFF2E7D32) else Color.Red)
+            if (bazinPrice > 0) DetailsRow("Bazin", "${formatBR(bazinPrice)}", if (data.currentPrice <= bazinPrice) Color(0xFF2E7D32) else Color.Red)
             Spacer(modifier = Modifier.height(8.dp))
             DetailsRow("P/L", formatBR(data.pl))
             DetailsRow("P/VP", formatBR(data.pvp))
@@ -1019,7 +1067,7 @@ fun AssetDetails(data: AssetData) {
             }
         } else if (data is AssetData.Etf) {
             DetailsRow("Taxa Adm", formatBR(data.adminFee * 100) + "%", if (data.adminFee <= 0.005) Color(0xFF2E7D32) else Color.Red)
-            DetailsRow("Vol. Diário", "M R$ ${formatBR(data.avgDailyVolume / 1_000_000.0)}")
+            DetailsRow("Vol. Diário", "M ${formatBR(data.avgDailyVolume / 1_000_000.0)}")
             DetailsRow("Holdings", data.numberOfHoldings.toString())
         } else if (data is AssetData.Bdr) {
             DetailsRow("DY Atual", formatBR(data.dividendYield * 100) + "%")
@@ -1031,14 +1079,14 @@ fun AssetDetails(data: AssetData) {
 @Composable
 fun DetailsRow(l: String, v: String, c: Color = Color.Unspecified) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(l, color = Color.Gray, fontSize = 12.sp); Text(v, fontWeight = FontWeight.Bold, color = c, fontSize = 12.sp)
+        Text(l, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Medium); Text(v, fontWeight = FontWeight.Bold, color = c, fontSize = 12.sp)
     }
 }
 
 @Composable
 fun ProsConsSection(p: List<String>, c: List<String>) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        if (p.isNotEmpty()) { Text("Prós", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 14.sp); p.forEach { Text("• $it", fontSize = 11.sp) } }
-        if (c.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text("Contras", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 14.sp); c.forEach { Text("• $it", fontSize = 11.sp) } }
+        if (p.isNotEmpty()) { Text("Prós", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 14.sp); p.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) } }
+        if (c.isNotEmpty()) { Spacer(Modifier.height(4.dp)); Text("Contras", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 14.sp); c.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) } }
     }
 }
