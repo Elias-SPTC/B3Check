@@ -13,6 +13,7 @@ sealed class AssetData {
     abstract val sharesCount: Double
     abstract val userScore: Double
     abstract val userScorePriority: Boolean
+    abstract val userScoreAverage: Boolean
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet()
@@ -50,7 +51,8 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
-        override val userScorePriority: Boolean = false
+        override val userScorePriority: Boolean = false,
+        override val userScoreAverage: Boolean = false
     ) : AssetData()
 
     data class Fii(
@@ -81,7 +83,8 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
-        override val userScorePriority: Boolean = false
+        override val userScorePriority: Boolean = false,
+        override val userScoreAverage: Boolean = false
     ) : AssetData()
 
     data class Etf(
@@ -101,7 +104,8 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
-        override val userScorePriority: Boolean = false
+        override val userScorePriority: Boolean = false,
+        override val userScoreAverage: Boolean = false
     ) : AssetData()
 
     data class Bdr(
@@ -116,6 +120,7 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
-        override val userScorePriority: Boolean = false
+        override val userScorePriority: Boolean = false,
+        override val userScoreAverage: Boolean = false
     ) : AssetData()
 }

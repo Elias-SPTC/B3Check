@@ -579,7 +579,7 @@ fun StockAnalysisScreen(viewModel: StockViewModel) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         when (val state = uiState) {
-            is StockUiState.Success -> { ScoreHeader(state.data, state.score, viewModel); ManualEditor(state.data, state.score, { viewModel.saveManualAsset(it) }, {}, { viewModel.deleteAsset(it.ticker); tickerInput = "" }) }
+            is StockUiState.Success -> { ScoreHeader(state.data, state.score, viewModel, { viewModel.saveManualAsset(it) }); ManualEditor(state.data, state.score, { viewModel.saveManualAsset(it) }, {}, { viewModel.deleteAsset(it.ticker); tickerInput = "" }) }
             is StockUiState.Error -> if (tickerInput.length >= 4) Row { Button(onClick = { viewModel.addManualAsset(tickerInput, "Ação") }) { Text("Ação") }; Button(onClick = { viewModel.addManualAsset(tickerInput, "FII") }) { Text("FII") }; Button(onClick = { viewModel.addManualAsset(tickerInput, "ETF") }) { Text("ETF") } }
             else -> {}
         }
@@ -587,13 +587,13 @@ fun StockAnalysisScreen(viewModel: StockViewModel) {
 }
 
 @Composable
-fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel) {
+fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, onSave: (AssetData) -> Unit) {
     val motorScore = remember(data) {
         val raw = when(data) {
-            is AssetData.Stock -> data.copy(userScore = 0.0, userScorePriority = false)
-            is AssetData.Fii -> data.copy(userScore = 0.0, userScorePriority = false)
-            is AssetData.Etf -> data.copy(userScore = 0.0, userScorePriority = false)
-            is AssetData.Bdr -> data.copy(userScore = 0.0, userScorePriority = false)
+            is AssetData.Stock -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Fii -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Etf -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Bdr -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
         }
         viewModel.calculateScoreForAsset(raw)
     }
@@ -601,10 +601,38 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel) 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         Text(data.ticker, fontWeight = FontWeight.Black, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
         Text(data.name, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             ScoreIndicator("Motor", motorScore, MaterialTheme.colorScheme.onSurface)
-            ScoreIndicator("Manual", data.userScore, MaterialTheme.colorScheme.secondary)
-            ScoreIndicator("Média", (motorScore + data.userScore)/2.0, Color(0xFF1976D2))
+            ScoreIndicator(
+                "Manual", 
+                data.userScore, 
+                MaterialTheme.colorScheme.secondary,
+                checked = data.userScorePriority,
+                onCheck = { 
+                    val updated = when(data) {
+                        is AssetData.Stock -> data.copy(userScorePriority = it, userScoreAverage = false)
+                        is AssetData.Fii -> data.copy(userScorePriority = it, userScoreAverage = false)
+                        is AssetData.Etf -> data.copy(userScorePriority = it, userScoreAverage = false)
+                        is AssetData.Bdr -> data.copy(userScorePriority = it, userScoreAverage = false)
+                    }
+                    onSave(updated)
+                }
+            )
+            ScoreIndicator(
+                "Média", 
+                (motorScore + data.userScore)/2.0, 
+                Color(0xFF1976D2),
+                checked = data.userScoreAverage,
+                onCheck = { 
+                    val updated = when(data) {
+                        is AssetData.Stock -> data.copy(userScoreAverage = it, userScorePriority = false)
+                        is AssetData.Fii -> data.copy(userScoreAverage = it, userScorePriority = false)
+                        is AssetData.Etf -> data.copy(userScoreAverage = it, userScorePriority = false)
+                        is AssetData.Bdr -> data.copy(userScoreAverage = it, userScorePriority = false)
+                    }
+                    onSave(updated)
+                }
+            )
             ScoreIndicator("FINAL", finalScore, Color(0xFF2E7D32), true)
         }
         AssetDetails(data)
@@ -613,10 +641,15 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel) 
 }
 
 @Composable
-fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false) {
+fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false, checked: Boolean? = null, onCheck: ((Boolean) -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
-        Text(formatBR(v), fontSize = if (main) 22.sp else 16.sp, fontWeight = FontWeight.Bold, color = c)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatBR(v), fontSize = if (main) 22.sp else 16.sp, fontWeight = FontWeight.Bold, color = c)
+            if (checked != null && onCheck != null) {
+                Checkbox(checked = checked, onCheckedChange = onCheck, modifier = Modifier.size(24.dp).padding(start = 2.dp))
+            }
+        }
     }
 }
 
@@ -633,7 +666,6 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     LaunchedEffect(data.ticker) {
         indicatorStates.clear()
         indicatorStates["uScore"] = if(data.userScore > 0) formatBR(data.userScore) else ""
-        indicatorStates["uPrior"] = if(data.userScorePriority) "Sim" else "Não"
         if (data is AssetData.Stock) {
             indicatorStates["cotas"] = formatBR(data.sharesCount, true); indicatorStates["lpa"] = formatBR(data.lpa); indicatorStates["vpa"] = formatBR(data.vpa)
             indicatorStates["roe"] = formatBR(data.roe * 100); indicatorStates["dy"] = formatBR(data.dividendYield * 100)
@@ -746,8 +778,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), 
                 decorationBox = { inner -> Surface(shape = MaterialTheme.shapes.extraSmall, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)) { Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) { inner() } } }
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = indicatorStates["uPrior"] == "Sim", onCheckedChange = { indicatorStates["uPrior"] = if(it) "Sim" else "Não" }); Text("Prioridade", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
+            Spacer(modifier = Modifier.weight(1.8f))
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -824,10 +855,10 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         Row(modifier = Modifier.padding(top = 16.dp)) {
             Button(onClick = {
                 val updated = when (data) {
-                    is AssetData.Stock -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"), roe = parseBR(indicatorStates["roe"] ?: "0")/100, dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0")/100, payout = parseBR(indicatorStates["payout"] ?: "0")/100, cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0")/100, cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0")/100, netMargin = parseBR(indicatorStates["ml"] ?: "0")/100, debtToEquity = parseBR(indicatorStates["de"] ?: "0"), debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"), pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"), baselIndex = parseBR(indicatorStates["basel"] ?: "0")/100, grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0"), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000)
-                    is AssetData.Fii -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0")/100, yield12m = parseBR(indicatorStates["y12"] ?: "0")/100, propertyCount = (indicatorStates["prop"] ?: "0").toInt(), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, managementFee = parseBR(indicatorStates["mFee"] ?: "0")/100, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"), leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100, tenantScore = (indicatorStates["tScore"] ?: "0").toInt(), leverageScore = (indicatorStates["lScore"] ?: "0").toInt(), managementType = indicatorStates["mType"] ?: "Ativa")
-                    is AssetData.Etf -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", adminFee = parseBR(indicatorStates["aFee"] ?: "0")/100, trackingError = parseBR(indicatorStates["te"] ?: "0")/100, avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, numberOfHoldings = (indicatorStates["hold"] ?: "0").toInt())
-                    is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), userScorePriority = indicatorStates["uPrior"] == "Sim", dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
+                    is AssetData.Stock -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), lpa = parseBR(indicatorStates["lpa"] ?: "0"), vpa = parseBR(indicatorStates["vpa"] ?: "0"), roe = parseBR(indicatorStates["roe"] ?: "0")/100, dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, dividendYield5Years = parseBR(indicatorStates["dy5"] ?: "0")/100, payout = parseBR(indicatorStates["payout"] ?: "0")/100, cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0")/100, cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0")/100, netMargin = parseBR(indicatorStates["ml"] ?: "0")/100, debtToEquity = parseBR(indicatorStates["de"] ?: "0"), debtToEbitda = parseBR(indicatorStates["deEbitda"] ?: "0"), pl = parseBR(indicatorStates["pl"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"), baselIndex = parseBR(indicatorStates["basel"] ?: "0")/100, grahamPrice = parseBR(indicatorStates["graham"] ?: "0"), bazinPrice = parseBR(indicatorStates["bazin"] ?: "0"), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000)
+                    is AssetData.Fii -> data.copy(name = nameState, currentPrice = parseBR(priceState), sector = sectorState, subSector = subSectorState, isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), pvp = parseBR(indicatorStates["pvp"] ?: "0"), vacancy = parseBR(indicatorStates["vac"] ?: "0")/100, yield12m = parseBR(indicatorStates["y12"] ?: "0")/100, propertyCount = (indicatorStates["prop"] ?: "0").toInt(), avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, managementFee = parseBR(indicatorStates["mFee"] ?: "0")/100, weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"), leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100, tenantScore = (indicatorStates["tScore"] ?: "0").toInt(), leverageScore = (indicatorStates["lScore"] ?: "0").toInt(), managementType = indicatorStates["mType"] ?: "Ativa")
+                    is AssetData.Etf -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), adminFee = parseBR(indicatorStates["aFee"] ?: "0")/100, trackingError = parseBR(indicatorStates["te"] ?: "0")/100, avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0")*1_000_000, aum = parseBR(indicatorStates["aum"] ?: "0")*1_000_000, numberOfHoldings = (indicatorStates["hold"] ?: "0").toInt())
+                    is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
                 }
                 onSave(updated)
             }, modifier = Modifier.weight(1f)) { Text("Salvar") }

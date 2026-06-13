@@ -26,7 +26,9 @@ class DesktopDataSource : AssetDataSource {
                 valuationSource = it.valuationSource ?: "",
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
-                userScorePriority = it.userScorePriority
+                userScore = it.userScore,
+                userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", 
@@ -35,14 +37,18 @@ class DesktopDataSource : AssetDataSource {
                 fundType = it.fundType ?: "Tijolo",
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
-                userScorePriority = it.userScorePriority
+                userScore = it.userScore,
+                userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage
             )
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", 
                 subSector = it.subSector ?: "ETF",
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
-                userScorePriority = it.userScorePriority
+                userScore = it.userScore,
+                userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage
             )
             is AssetData.Bdr -> it.copy(
                 sector = it.sector ?: "BDR", 
@@ -50,7 +56,9 @@ class DesktopDataSource : AssetDataSource {
                 parity = it.parity ?: "1:1",
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
-                userScorePriority = it.userScorePriority
+                userScore = it.userScore,
+                userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage
             )
         }
         asset.pros = it.pros ?: emptyList()

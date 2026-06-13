@@ -53,6 +53,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 debtToEbitda = it.debtToEbitda, cagrProfit5Years = it.cagrProfit5Years,
                 baselIndex = it.baselIndex, dividendYield5Years = it.dividendYield5Years,
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage,
                 avgDailyVolume = it.avgDailyVolume, cagrRevenue5Years = it.cagrRevenue5Years,
                 grahamPrice = it.grahamPrice, bazinPrice = it.bazinPrice,
                 debtToEquity = it.debtToEquity, netMargin = it.netMargin, payout = it.payout,
@@ -63,6 +64,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
                 leverageValue = it.leverageValue, avgDailyVolume = it.avgDailyVolume,
                 vacancy = it.vacancy, propertyCount = it.propertyCount,
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage,
                 aum = it.aum, managementFee = it.managementFee, weightedLeaseTerm = it.weightedLeaseTerm,
                 tenantScore = it.tenantScore, leverageScore = it.leverageScore,
                 isInert = it.isInert
@@ -70,6 +72,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage,
                 adminFee = it.adminFee, trackingError = it.trackingError,
                 avgDailyVolume = it.avgDailyVolume, aum = it.aum, numberOfHoldings = it.numberOfHoldings,
                 isInert = it.isInert
@@ -77,6 +80,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "manual_
             is AssetData.Bdr -> it.copy(
                 sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScoreAverage = it.userScoreAverage,
                 dividendYield = it.dividendYield, parity = it.parity ?: "1:1",
                 isInert = it.isInert
             )

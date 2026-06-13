@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
 import com.example.b3check.ui.theme.B3CheckTheme
 
 class MainActivity : ComponentActivity() {
@@ -15,9 +16,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             B3CheckTheme {
-                val container = B3CheckContainer(this)
+                val container = remember { B3CheckContainer(this) }
                 
-                // Implementação Android dos seletores de arquivo
+                // Armazena temporariamente o callback de importação para sincronizar com o motor
+                var importCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
+
                 val createDocumentLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.CreateDocument("application/json")
                 ) { uri ->
@@ -35,9 +38,9 @@ class MainActivity : ComponentActivity() {
                 ) { uri ->
                     uri?.let {
                         contentResolver.openInputStream(it)?.bufferedReader()?.use { r -> 
-                            if (container.dataSource.importBackup(r.readText())) {
-                                Toast.makeText(this, "Restaurado!", Toast.LENGTH_SHORT).show()
-                            }
+                            val json = r.readText()
+                            importCallback?.invoke(json) // Aciona o importBackup do StockViewModel
+                            Toast.makeText(this, "Restaurado!", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -47,7 +50,8 @@ class MainActivity : ComponentActivity() {
                     onExport = { _, defaultName -> 
                         createDocumentLauncher.launch(defaultName) 
                     },
-                    onImport = { _ ->
+                    onImport = { onResult -> 
+                        importCallback = onResult
                         openDocumentLauncher.launch(arrayOf("application/json", "*/*"))
                     }
                 )
