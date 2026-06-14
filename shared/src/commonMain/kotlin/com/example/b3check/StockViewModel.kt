@@ -124,163 +124,108 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             is AssetData.Stock -> {
                 val sec = (data.sector ?: "").trim().lowercase()
                 val sub = (data.subSector ?: "").trim().lowercase()
-                
                 val isBank = sub.contains("banco")
                 val isInsurance = sub.contains("seguradora")
                 val isHolding = sub.contains("holding")
                 val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica") || sub.contains("saneamento")
 
-                // 1. Rentabilidade (ROE) - Max 2.5
+                // 1. Rentabilidade (ROE)
                 val roeMeta = when {
                     isBank || isInsurance || isHolding -> 0.12
                     isUtility || data.ticker.startsWith("VALE") || data.ticker.startsWith("VIVT") -> 0.10
                     else -> 0.14
                 }
-                
-                if (data.roe >= roeMeta) { 
-                    base += 2.5
-                    prosList.add("Rentabilidade Superior: ROE de ${formatBR(data.roe*100)}%") 
-                } else if (data.roe >= 0.08) {
-                    base += 1.5
-                    prosList.add("Rentabilidade Aceitável: ROE de ${formatBR(data.roe*100)}%")
-                    consList.add("ROE abaixo da meta ideal de ${formatBR(roeMeta*100)}%")
-                } else {
-                    base += 0.5
-                    consList.add("Baixa Rentabilidade: ROE insuficiente (${formatBR(data.roe*100)}%)")
-                }
+                if (data.roe >= roeMeta) { base += 2.0; prosList.add("ROE Superior: ${formatBR(data.roe*100)}%") }
+                else { base += 1.0; consList.add("ROE abaixo da meta ideal") }
 
-                // 2. Solvência e Risco - Max 2.5
+                // 2. Solvência
                 if (isBank) {
-                    if (data.baselIndex >= 0.14) { 
-                        base += 2.5
-                        prosList.add("Basileia Sólida: ${formatBR(data.baselIndex*100)}%") 
-                    } else {
-                        base += 1.0
-                        consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}% (abaixo de 14%)")
-                    }
-                } else if (isInsurance) {
-                    if (data.roe > 0.15) {
-                        base += 2.5
-                        prosList.add("Seguradora com forte solvência/ROE")
-                    } else {
-                        base += 1.5
-                        consList.add("Seguradora com rentabilidade/solvência moderada")
-                    }
+                    if (data.baselIndex >= 0.14) { base += 2.0; prosList.add("Basileia Sólida") }
+                    else { base += 0.5; consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}%") }
                 } else {
                     val debtLimit = if (isUtility) 4.5 else 3.0
-                    if (data.debtToEbitda <= 0 && data.currentPrice > 0) {
-                        base += 2.5
-                        prosList.add("Excelente Saúde: Caixa Líquido")
-                    } else if (data.debtToEbitda < debtLimit) { 
-                        base += 2.5
-                        prosList.add("Endividamento Saudável: ${formatBR(data.debtToEbitda)}x EBITDA") 
-                    } else {
-                        base += 1.0
-                        if (data.debtToEbitda > debtLimit + 1.5) {
-                            consList.add("Alavancagem Crítica: ${formatBR(data.debtToEbitda)}x Dív/EBITDA")
-                        } else {
-                            consList.add("Dívida Pressionada: ${formatBR(data.debtToEbitda)}x EBITDA")
-                        }
-                    }
+                    if (data.debtToEbitda < debtLimit) { base += 2.0; prosList.add("Endividamento Saudável") }
+                    else { base += 0.5; consList.add("Dívida/EBITDA Elevada: ${formatBR(data.debtToEbitda)}x") }
                 }
 
-                // 3. Eficiência e Crescimento - Max 2.0
-                val marginLimit = if (data.ticker.startsWith("VIVT") || isBank) 0.08 else 0.12
-                if (data.netMargin >= marginLimit || isBank) {
-                    base += 1.0
-                    prosList.add("Eficiência: Margem Líquida adequada")
-                } else {
-                    base += 0.5
-                    consList.add("Margem Líquida Estreita: ${formatBR(data.netMargin*100)}%")
-                }
+                // 3. Eficiência e Crescimento
+                if (data.netMargin > 0.10 || isBank) { base += 1.0; prosList.add("Boa Eficiência Operacional") }
+                else { consList.add("Margem Líquida Estreita") }
 
-                if (data.cagrProfit5Years >= 0.10) {
-                    base += 1.0
-                    prosList.add("Forte Crescimento de Lucro (CAGR 5a)")
-                } else if (data.cagrProfit5Years >= 0 || data.ticker.startsWith("VALE")) {
-                    base += 0.7
-                    prosList.add("Lucratividade Resiliente")
-                    if (data.cagrProfit5Years < 0.05) consList.add("Baixo Crescimento de Lucro")
-                } else {
-                    consList.add("Histórico Negativo: Lucros em Queda (CAGR)")
-                }
+                if (data.cagrProfit5Years >= 0.10) { base += 1.0; prosList.add("Forte Crescimento de Lucro") }
+                else if (data.cagrProfit5Years < 0) { consList.add("Histórico de Lucros em Queda") }
 
-                // 4. Valuation - Max 2.0
-                val isGrowth = data.cagrProfit5Years > 0.15 && data.roe > 0.20
-                if (data.pvp in 0.1..1.8 || (isGrowth && data.pvp < 8.0) || (isBank && data.roe > 0.20 && data.pvp < 4.0)) { 
-                    base += 1.0
-                    prosList.add("Preço/VP adequado ao perfil") 
-                } else {
-                    consList.add("Valuation Esticado: P/VP de ${formatBR(data.pvp)}")
-                }
+                if (data.cagrRevenue5Years >= 0.10) { base += 0.5; prosList.add("Crescimento de Receita Sólido") }
 
-                if (data.pl in 1.0..18.0 || (isGrowth && data.pl < 35.0)) {
-                    base += 1.0
-                    prosList.add("Múltiplo P/L Atrativo")
-                } else {
-                    base += 0.5
-                    if (data.pl > 25.0) consList.add("P/L Elevado: ${formatBR(data.pl)}x")
-                    else if (data.pl <= 0) consList.add("P/L Negativo ou Indisponível")
-                }
+                // 4. Valuation
+                if (data.pvp in 0.1..2.0) { base += 1.0; prosList.add("Preço/VP Atrativo") }
+                else { consList.add("Valuation Esticado (P/VP)") }
 
-                // 5. Dividendos - Max 1.0
-                if (data.dividendYield >= 0.05) { 
-                    base += 1.0
-                    prosList.add("Proventos Fortes: DY ${formatBR(data.dividendYield*100)}%") 
-                } else if (data.dividendYield >= 0.025) {
-                    base += 0.7
-                    prosList.add("Pagadora Regular de Dividendos")
-                } else {
-                    consList.add("Dividend Yield Baixo: ${formatBR(data.dividendYield*100)}%")
-                }
+                if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
+                else { base += 0.5; consList.add("Múltiplo P/L Elevado") }
+
+                // 5. Dividendos e Payout
+                var divPts = 0.0
+                if (data.dividendYield >= 0.05) divPts += 0.5
+                if (data.dividendYield5Years >= 0.05) divPts += 0.5
+                if (divPts >= 1.0) prosList.add("Excelente Histórico de Proventos")
+                else if (divPts < 0.5) consList.add("Dividend Yield abaixo da média")
+                base += divPts
+
+                if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável: ${formatBR(data.payout*100)}%") }
+                else if (data.payout > 0.9) { consList.add("Payout Elevado (Risco p/ Reservas)") }
+                
+                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
             }
             is AssetData.Fii -> {
-                // 1. Valuation (P/VP) - Max 3.0
-                if (data.pvp in 0.92..1.06) { base += 3.0; prosList.add("Preço Justo: P/VP de ${formatBR(data.pvp)}") }
-                else if (data.pvp < 0.92) { base += 2.5; prosList.add("Desconto Patrimonial (Oportunidade)") }
-                else { consList.add("Ágio Elevado: P/VP de ${formatBR(data.pvp)}") }
+                // 1. Valuation
+                if (data.pvp in 0.92..1.06) { base += 2.0; prosList.add("Preço Justo (P/VP)") }
+                else if (data.pvp < 0.92) { base += 1.5; prosList.add("Oportunidade (Desconto)") }
+                else { consList.add("Ágio Elevado: P/VP ${formatBR(data.pvp)}") }
 
-                // 2. Rendimentos (DY 12m) - Max 3.0
-                if (data.yield12m >= 0.10) { base += 3.0; prosList.add("Rendimento Forte: DY ${formatBR(data.yield12m*100)}%") }
-                else if (data.yield12m >= 0.07) { 
-                    base += 1.5; prosList.add("Rendimento em linha com mercado") 
-                    consList.add("DY Moderado: ${formatBR(data.yield12m*100)}%")
-                } else {
-                    consList.add("Rendimento Abaixo do Esperado: DY ${formatBR(data.yield12m*100)}%")
-                }
+                // 2. Rendimentos
+                var yldPts = 0.0
+                if (data.yield12m >= 0.09) yldPts += 1.5
+                if (data.avgYield5Years >= 0.08) yldPts += 1.0
+                if (yldPts >= 2.0) prosList.add("Rendimentos Fortes e Consistentes")
+                else consList.add("Rendimento ou Consistência abaixo do ideal")
+                base += yldPts
 
-                // 3. Qualidade (Manual Inquilino) - Max 2.0
-                base += data.tenantScore * 0.4
-                if (data.tenantScore >= 4) prosList.add("Qualidade: Portfólio/Inquilinos de Alto Nível")
-                else if (data.tenantScore <= 2) consList.add("Risco: Concentração ou Inquilinos de Médio/Baixo Risco")
+                // 3. Qualitativo (Manual)
+                base += data.tenantScore * 0.3 // Max 1.5
+                base += data.leverageScore * 0.3 // Max 1.5
+                if (data.tenantScore >= 4) prosList.add("Excelente Mix de Inquilinos")
+                if (data.leverageScore >= 4) prosList.add("Alavancagem Sob Controle")
 
-                // 4. Estrutura (Manual Alavancagem) - Max 2.0
-                base += data.leverageScore * 0.4
-                if (data.leverageScore >= 4) prosList.add("Estrutura: Baixa Alavancagem/Dívida Segura")
-                else if (data.leverageScore <= 2) consList.add("Alerta: Alavancagem que exige monitoramento")
+                // 4. Operacional
+                if (data.vacancy < 0.10) { base += 0.5; prosList.add("Baixa Vacância") }
+                else { consList.add("Vacância em Alerta: ${formatBR(data.vacancy*100)}%") }
+
+                if (data.propertyCount > 5) { base += 0.5; prosList.add("Portfólio Multi-Propriedade") }
+                if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") }
+                
+                if (data.aum < 300_000_000 && data.aum > 0) consList.add("Fundo de Pequeno Porte (Risco de Liquidez)")
+                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
             }
             is AssetData.Etf -> {
-                if (data.adminFee <= 0.003) { base += 4.0; prosList.add("Taxa Adm Baixíssima") }
-                else if (data.adminFee <= 0.007) { base += 2.0; prosList.add("Taxa Adm Competitiva") }
-                else { consList.add("Taxa de Administração Elevada: ${formatBR(data.adminFee*100)}%") }
-
-                if (data.trackingError <= 0.015) { base += 3.0; prosList.add("Alta Fidelidade ao Índice") }
-                else { consList.add("Erro de Aderência (Tracking Error) elevado") }
-
-                if (data.aum >= 100_000_000) { base += 3.0; prosList.add("Alta Liquidez/Patrimônio") }
-                else { base += 1.0; consList.add("Patrimônio Reduzido (Risco de Liquidez)") }
+                if (data.adminFee <= 0.005) { base += 4.0; prosList.add("Taxa Adm Baixa") }
+                else { consList.add("Taxa Adm Elevada") }
+                
+                if (data.trackingError <= 0.02) { base += 3.0; prosList.add("Alta Fidelidade ao Índice") }
+                
+                if (data.numberOfHoldings > 50) { base += 2.0; prosList.add("Alta Diversificação (+50 ativos)") }
+                
+                if (data.aum >= 100_000_000) { base += 1.0; prosList.add("Alta Liquidez/AUM") }
+                else { consList.add("Patrimônio Reduzido") }
+                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
             }
             is AssetData.Bdr -> {
-                if (data.dividendYield > 0.025) { base += 5.0; prosList.add("BDR Pagador de Proventos") }
-                else { base += 3.0; consList.add("Sem foco em Dividendos (Crescimento)") }
-                if (data.parity == "1:1") { base += 5.0; prosList.add("Paridade Direta (1:1)") }
-                else { base += 4.0; consList.add("Paridade Fracionada: ${data.parity}") }
+                if (data.dividendYield > 0.02) { base += 5.0; prosList.add("BDR Pagador") }
+                if (data.parity == "1:1") { base += 5.0; prosList.add("Paridade Direta") }
+                else { base += 3.0; consList.add("Paridade Fracionada") }
             }
         }
 
-        // Verificações Globais de Dados
-        if (data.currentPrice <= 0) consList.add("Dados: Preço de mercado não disponível")
-        
         val rawScore = base.coerceIn(0.0, 10.0)
         val final = if (data.userScoreAverage && data.userScore > 0) (rawScore + data.userScore) / 2.0 else rawScore
 
