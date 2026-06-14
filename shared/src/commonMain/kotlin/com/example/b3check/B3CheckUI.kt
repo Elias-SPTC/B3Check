@@ -417,7 +417,7 @@ fun InvestScreen(viewModel: StockViewModel) {
                             if (qtySuggest >= 100 && asset is AssetData.Stock) {
                                 val lots = qtySuggest / 100
                                 val rem = qtySuggest % 100
-                                Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                                Text("${lots} lotes" + (if(rem>0) " + $rem" else ""), fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
                             }
                             Text("${formatBR(valSuggest)}", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
                         } else Text("-", color = MaterialTheme.colorScheme.onSurface)
@@ -466,7 +466,6 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
     var investAmount by rememberSaveable { mutableStateOf("") }
     
     val scored = remember(recs) { recs.map { it to viewModel.calculateScoreForAsset(it) } }
-    // Garante que a UI também respeite a ordem de Nota DESC + Ticker ASC
     val sortedScored = remember(scored) {
         scored.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
     }
@@ -519,7 +518,7 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
                             if (qtySuggest >= 100 && asset is AssetData.Stock) {
                                 val lots = qtySuggest / 100
                                 val rem = qtySuggest % 100
-                                Text("$lots lot${if(lots>1) "es" else "e"}${if(rem>0) " + $rem" else ""}", fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                                Text("${lots} lotes" + (if(rem>0) " + $rem" else ""), fontSize = 13.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
                             }
                             Text("${formatBR(qtySuggest * asset.currentPrice)}", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
@@ -662,6 +661,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
     var inPortfolioState by remember(data.ticker) { mutableStateOf(data.isInPortfolio) }
     var isInertState by remember(data.ticker) { mutableStateOf(data.isInert) }
     val indicatorStates = remember(data.ticker) { mutableStateMapOf<String, String>() }
+    var helpDialogType by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(data.ticker) {
         indicatorStates.clear()
@@ -698,8 +698,33 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         }
     }
 
+    if (helpDialogType != null) {
+        AlertDialog(
+            onDismissRequest = { helpDialogType = null },
+            title = { Text(if (helpDialogType == "tenant") "Diversificação de Inquilinos" else "Grau de Alavancagem", fontWeight = FontWeight.Bold) },
+            text = {
+                val helpContent = if (helpDialogType == "tenant") {
+                    "Nota 0: Monoinquilino (100% da renda). Risco extremo.\n" +
+                    "Nota 1 ou 2: Risco Alto. Um inquilino > 30% ou < 5 locatários.\n" +
+                    "Nota 3: Risco Moderado. Maior locatário entre 20% e 30%.\n" +
+                    "Nota 4: Risco Baixo. Maior locatário < 20% e 15 a 30 locatários.\n" +
+                    "Nota 5: Excelente. Maior locatário < 10% e base pulverizada."
+                } else {
+                    "Nota 5: Excelente (0-5% LTV). Risco nulo.\n" +
+                    "Nota 4: Conservador (5-15% LTV). Saudável e tática.\n" +
+                    "Nota 3: Moderado (15-25% LTV). Exige monitoramento.\n" +
+                    "Nota 2: Risco Elevado (>25% LTV). NOI muito comprometido.\n" +
+                    "Nota 1: Risco Muito Elevado (>35% LTV).\n" +
+                    "Nota 0: Risco Crítico (>40% LTV). Perigo de calote."
+                }
+                Text(helpContent, fontSize = 13.sp)
+            },
+            confirmButton = { TextButton(onClick = { helpDialogType = null }) { Text("Entendido") } }
+        )
+    }
+
     val stockClassification = mapOf(
-        "Financeiro" to listOf("Bancos", "Seguradoras", "Serviços Financeiros", "Exploração de Imóveis"),
+        "Financeiro" to listOf("Bancos", "Seguradoras", "Holdings", "Serviços Financeiros", "Exploração de Imóveis"),
         "Utilidade Pública" to listOf("Energia Elétrica", "Água e Saneamento", "Gás"),
         "Materiais Básicos" to listOf("Mineração", "Siderurgia e Metalurgia", "Papel e Celulose", "Químicos"),
         "Petróleo e Gás" to listOf("Extração e Refino", "Equipamentos e Serviços", "Biocombustíveis"),
@@ -773,12 +798,11 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             BasicTextField(
                 value = indicatorStates["uScore"] ?: "", 
                 onValueChange = { indicatorStates["uScore"] = it }, 
-                modifier = Modifier.weight(0.8f).height(32.dp), 
+                modifier = Modifier.weight(1.8f).height(32.dp), 
                 textStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface), 
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), 
                 decorationBox = { inner -> Surface(shape = MaterialTheme.shapes.extraSmall, border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface)) { Box(modifier = Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) { inner() } } }
             )
-            Spacer(modifier = Modifier.weight(1.8f))
         }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -813,7 +837,10 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true) { indicatorStates["mLev"] = it }
             
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(if(isPaper) "Nota Devedores" else if(isFoF) "Nota Carteira" else "Nota Inquilino", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if(isPaper) "Nota Devedores" else if(isFoF) "Nota Carteira" else "Nota Inquilino", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "tenant" }, tint = Color.Gray)
+                }
                 Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
                     val current = (indicatorStates["tScore"] ?: "0").toInt()
                     (0..5).forEach { score ->
@@ -825,7 +852,10 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             }
 
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Nota Alavancagem", modifier = Modifier.weight(1f), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Nota Alavancagem", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "leverage" }, tint = Color.Gray)
+                }
                 Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) {
                     val current = (indicatorStates["lScore"] ?: "0").toInt()
                     (0..5).forEach { score ->
