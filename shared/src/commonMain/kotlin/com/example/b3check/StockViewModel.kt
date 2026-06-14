@@ -144,8 +144,14 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                     else { base += 0.5; consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}%") }
                 } else {
                     val debtLimit = if (isUtility) 4.5 else 3.0
-                    if (data.debtToEbitda < debtLimit) { base += 2.0; prosList.add("Endividamento Saudável") }
-                    else { base += 0.5; consList.add("Dívida/EBITDA Elevada: ${formatBR(data.debtToEbitda)}x") }
+                    var solvPts = 0.0
+                    if (data.debtToEbitda < debtLimit) { solvPts += 1.0; prosList.add("Dív/EBITDA Saudável") }
+                    else { consList.add("Dívida/EBITDA Elevada: ${formatBR(data.debtToEbitda)}x") }
+
+                    if (data.debtToEquity < 1.0) { solvPts += 1.0; prosList.add("Dív/Patrimônio Sob Controle") }
+                    else { consList.add("Dív/Patrimônio Elevada: ${formatBR(data.debtToEquity)}") }
+                    
+                    base += solvPts.coerceAtMost(2.0)
                 }
 
                 // 3. Eficiência e Crescimento
@@ -153,29 +159,33 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 else { consList.add("Margem Líquida Estreita") }
 
                 if (data.cagrProfit5Years >= 0.10) { base += 1.0; prosList.add("Forte Crescimento de Lucro") }
-                else if (data.cagrProfit5Years < 0) { consList.add("Histórico de Lucros em Queda") }
+                else if (data.cagrProfit5Years >= 0) { base += 0.5; prosList.add("Lucratividade Resiliente") }
+                else { consList.add("Histórico: Lucros em Queda") }
 
                 if (data.cagrRevenue5Years >= 0.10) { base += 0.5; prosList.add("Crescimento de Receita Sólido") }
+                else if (data.cagrRevenue5Years < 0.05) { consList.add("Crescimento de Receita Baixo/Nulo") }
 
                 // 4. Valuation
                 if (data.pvp in 0.1..2.0) { base += 1.0; prosList.add("Preço/VP Atrativo") }
-                else { consList.add("Valuation Esticado (P/VP)") }
+                else { consList.add("Valuation Esticado (P/VP): ${formatBR(data.pvp)}") }
 
                 if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
-                else { base += 0.5; consList.add("Múltiplo P/L Elevado") }
+                else { base += 0.5; consList.add("Múltiplo P/L Fora da Faixa Ideal: ${formatBR(data.pl)}x") }
 
                 // 5. Dividendos e Payout
                 var divPts = 0.0
-                if (data.dividendYield >= 0.05) divPts += 0.5
-                if (data.dividendYield5Years >= 0.05) divPts += 0.5
-                if (divPts >= 1.0) prosList.add("Excelente Histórico de Proventos")
-                else if (divPts < 0.5) consList.add("Dividend Yield abaixo da média")
+                if (data.dividendYield >= 0.05) { divPts += 0.5; prosList.add("DY Atual Forte") }
+                else { consList.add("DY Atual Abaixo de 5%") }
+
+                if (data.dividendYield5Years >= 0.05) { divPts += 0.5; prosList.add("Excelente Histórico de Proventos") }
+                else { consList.add("Falta de Consistência nos Proventos (5a)") }
                 base += divPts
 
                 if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável: ${formatBR(data.payout*100)}%") }
-                else if (data.payout > 0.9) { consList.add("Payout Elevado (Risco p/ Reservas)") }
+                else if (data.payout > 0.9) { consList.add("Payout Elevado (Risco p/ Reservas): ${formatBR(data.payout*100)}%") }
+                else { consList.add("Payout Baixo ou Retenção Excessiva: ${formatBR(data.payout*100)}%") }
                 
-                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
+                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária (Ações)")
             }
             is AssetData.Fii -> {
                 // 1. Valuation
