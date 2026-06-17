@@ -2,10 +2,49 @@ import com.example.b3check.AssetData
 import com.example.b3check.AssetDataSource
 import com.google.gson.Gson
 import java.io.File
+import java.awt.FileDialog
+import java.awt.Frame
 
 class DesktopDataSource : AssetDataSource {
     private val gson = Gson()
-    private val storageFile = File(System.getProperty("user.home"), ".b3check/assets.json")
+    private val storageFile: File = run {
+        val home = System.getProperty("user.home")
+        val configDir = File(home, ".b3check")
+        if (!configDir.exists()) configDir.mkdirs()
+        
+        val pathFile = File(configDir, "storage_location.txt")
+        
+        // 1. Tenta carregar o caminho salvo anteriormente via diálogo
+        if (pathFile.exists()) {
+            val customPath = pathFile.readText().trim()
+            if (customPath.isNotEmpty()) {
+                val f = File(customPath)
+                if (f.exists() || f.parentFile?.exists() == true) return@run f
+            }
+        }
+        
+        // 2. Busca automática no Filen (Linux e Windows)
+        val filenPath = File(home, "Filen/B3Check/assets.json")
+        if (filenPath.exists()) return@run filenPath
+        
+        val winFilen = File(System.getenv("USERPROFILE") ?: "", "Filen/B3Check/assets.json")
+        if (winFilen.exists()) return@run winFilen
+
+        // 3. Se não encontrou nada, abre o diálogo para o usuário escolher o arquivo
+        try {
+            val fd = FileDialog(null as Frame?, "Selecione o arquivo de dados do B3Check (assets.json)", FileDialog.LOAD)
+            fd.isVisible = true
+            if (fd.file != null) {
+                val selectedFile = File(fd.directory, fd.file)
+                pathFile.writeText(selectedFile.absolutePath)
+                return@run selectedFile
+            }
+        } catch (e: Exception) {
+            // Fallback silencioso em caso de erro no ambiente gráfico
+        }
+
+        File(configDir, "assets.json")
+    }
 
     init {
         val parent = storageFile.parentFile
@@ -18,7 +57,6 @@ class DesktopDataSource : AssetDataSource {
     }
 
     private fun safeAsset(it: AssetData): AssetData {
-        // Garante que campos nulos de versões antigas sejam tratados como strings vazias ou valores padrão
         val asset = when(it) {
             is AssetData.Stock -> it.copy(
                 sector = it.sector ?: "", 
@@ -127,8 +165,6 @@ class DesktopDataSource : AssetDataSource {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
             val data: List<Map<String, String>> = gson.fromJson(json, typeToken)
-            
-            // Processa cada item para garantir que os dados "sujos" sejam limpos antes de salvar
             val cleanedList = data.mapNotNull { item ->
                 val type = item["type"]
                 val jsonData = item["json"]
@@ -141,7 +177,6 @@ class DesktopDataSource : AssetDataSource {
                 }
                 asset?.let { safeAsset(it) }
             }
-            
             saveAll(cleanedList)
             true
         } catch (e: Exception) {

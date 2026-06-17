@@ -154,26 +154,14 @@ fun AssetListScreen(
         )
     }
 
-    if (showRecalcSuccess) {
-        AlertDialog(
-            onDismissRequest = { showRecalcSuccess = false },
-            title = { Text("Processamento", color = MaterialTheme.colorScheme.onSurface) },
-            text = { Text("✅ Recálculo de todos os ativos concluído com sucesso!", color = MaterialTheme.colorScheme.onSurface) },
-            confirmButton = { Button(onClick = { showRecalcSuccess = false }) { Text("Fechar") } }
-        )
-    }
-
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Meus Ativos", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Row {
+                IconButton(onClick = { onImport { viewModel.importBackup(it) } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { 
-                    val date = viewModel.getCurrentDate()
-                    onExport(viewModel.exportBackup(), "$date-B3Check.json") 
-                }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
-                IconButton(onClick = { onImport { viewModel.importBackup(it) } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { onExport(viewModel.exportBackup(), "${viewModel.getCurrentDate()}-B3Check.json") }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

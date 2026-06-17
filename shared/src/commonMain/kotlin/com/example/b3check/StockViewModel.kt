@@ -265,7 +265,10 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }
     }
 
-    fun exportBackup() = db.exportBackup()
+    fun exportBackup(): String {
+        val json = db.exportBackup()
+        return if (json.isBlank()) "{}" else json
+    }
     fun importBackup(j: String) { viewModelScope.launch { if (db.importBackup(j)) loadAllAssets() } }
 
     fun getCurrentDate(): String {

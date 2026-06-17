@@ -17,18 +17,21 @@ class MainActivity : ComponentActivity() {
         setContent {
             B3CheckTheme {
                 val container = remember { B3CheckContainer(this) }
-                
-                // Armazena temporariamente o callback de importação para sincronizar com o motor
                 var importCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
 
                 val createDocumentLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.CreateDocument("application/json")
                 ) { uri ->
                     uri?.let {
-                        val json = container.dataSource.exportBackup()
-                        contentResolver.openOutputStream(it)?.use { s -> 
-                            s.write(json.toByteArray())
-                            Toast.makeText(this, "Backup OK!", Toast.LENGTH_SHORT).show() 
+                        try {
+                            val json = container.dataSource.exportBackup()
+                            contentResolver.openOutputStream(it)?.use { stream ->
+                                stream.write(json.toByteArray())
+                                stream.flush()
+                                Toast.makeText(this, "Backup criado!", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Erro ao gravar arquivo", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -37,10 +40,14 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.OpenDocument()
                 ) { uri ->
                     uri?.let {
-                        contentResolver.openInputStream(it)?.bufferedReader()?.use { r -> 
-                            val json = r.readText()
-                            importCallback?.invoke(json) // Aciona o importBackup do StockViewModel
-                            Toast.makeText(this, "Restaurado!", Toast.LENGTH_SHORT).show()
+                        try {
+                            contentResolver.openInputStream(it)?.bufferedReader()?.use { r ->
+                                val json = r.readText()
+                                importCallback?.invoke(json)
+                                Toast.makeText(this, "Banco de dados restaurado!", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Toast.makeText(this, "Erro ao ler arquivo", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
