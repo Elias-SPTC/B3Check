@@ -74,7 +74,7 @@ fun MainContainer(
                     selected = currentTab == 3,
                     onClick = { currentTab = 3 },
                     icon = { Icon(Icons.Default.Star, contentDescription = null) },
-                    label = { Text("Recomendados", fontSize = 10.sp, maxLines = 1) }
+                    label = { Text("Favoritos", fontSize = 10.sp, maxLines = 1) }
                 )
                 NavigationBarItem(
                     selected = currentTab == 4,
@@ -151,6 +151,15 @@ fun AssetListScreen(
                 }
             },
             confirmButton = { Button(onClick = { showIntegrityReport = false }) { Text("Fechar") } }
+        )
+    }
+
+    if (showRecalcSuccess) {
+        AlertDialog(
+            onDismissRequest = { showRecalcSuccess = false },
+            title = { Text("Processamento", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("✅ Recálculo de todos os ativos concluído com sucesso!", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = { Button(onClick = { showRecalcSuccess = false }) { Text("Fechar") } }
         )
     }
 
@@ -500,7 +509,7 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
     val totalScore = sortedScored.filter { selected[it.first.ticker] == true }.sumOf { it.second }
     
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Recomendados", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
+        Text("Favoritos", style = MaterialTheme.typography.titleLarge, color = Color(0xFF2E7D32))
         Spacer(modifier = Modifier.height(8.dp))
         
         LazyColumn(modifier = Modifier.weight(1f)) {

@@ -2,8 +2,7 @@ import com.example.b3check.AssetData
 import com.example.b3check.AssetDataSource
 import com.google.gson.Gson
 import java.io.File
-import java.awt.FileDialog
-import java.awt.Frame
+import javax.swing.JFileChooser
 
 class DesktopDataSource : AssetDataSource {
     private val gson = Gson()
@@ -14,35 +13,41 @@ class DesktopDataSource : AssetDataSource {
         
         val pathFile = File(configDir, "storage_location.txt")
         
-        // 1. Tenta carregar o caminho salvo anteriormente via diálogo
+        // 1. Tenta carregar a PASTA salva anteriormente
         if (pathFile.exists()) {
-            val customPath = pathFile.readText().trim()
-            if (customPath.isNotEmpty()) {
-                val f = File(customPath)
-                if (f.exists() || f.parentFile?.exists() == true) return@run f
+            val savedPath = pathFile.readText().trim()
+            if (savedPath.isNotEmpty()) {
+                val folder = File(savedPath)
+                if (folder.exists() && folder.isDirectory) {
+                    return@run File(folder, "assets.json")
+                }
             }
         }
         
-        // 2. Busca automática no Filen (Linux e Windows)
-        val filenPath = File(home, "Filen/B3Check/assets.json")
-        if (filenPath.exists()) return@run filenPath
-        
-        val winFilen = File(System.getenv("USERPROFILE") ?: "", "Filen/B3Check/assets.json")
-        if (winFilen.exists()) return@run winFilen
+        // 2. Busca automática no Filen (Caminho padrão)
+        val filenFolder = File(home, "Filen/B3Check")
+        if (filenFolder.exists() && filenFolder.isDirectory) {
+            pathFile.writeText(filenFolder.absolutePath)
+            return@run File(filenFolder, "assets.json")
+        }
 
-        // 3. Se não encontrou nada, abre o diálogo para o usuário escolher o arquivo
+        // 3. Se não encontrou, abre o diálogo de seleção de PASTA
         try {
-            val fd = FileDialog(null as Frame?, "Selecione o arquivo de dados do B3Check (assets.json)", FileDialog.LOAD)
-            fd.isVisible = true
-            if (fd.file != null) {
-                val selectedFile = File(fd.directory, fd.file)
-                pathFile.writeText(selectedFile.absolutePath)
-                return@run selectedFile
+            val chooser = JFileChooser()
+            chooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
+            chooser.dialogTitle = "Selecione a PASTA do Filen para o banco do B3Check"
+            val result = chooser.showOpenDialog(null)
+            
+            if (result == JFileChooser.APPROVE_OPTION) {
+                val selectedFolder = chooser.selectedFile
+                pathFile.writeText(selectedFolder.absolutePath)
+                return@run File(selectedFolder, "assets.json")
             }
         } catch (e: Exception) {
-            // Fallback silencioso em caso de erro no ambiente gráfico
+            e.printStackTrace()
         }
 
+        // Fallback final
         File(configDir, "assets.json")
     }
 
