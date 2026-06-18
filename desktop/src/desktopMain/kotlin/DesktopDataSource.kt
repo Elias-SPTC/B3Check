@@ -107,6 +107,7 @@ class DesktopDataSource : AssetDataSource {
         asset.pros = it.pros ?: emptyList()
         asset.cons = it.cons ?: emptyList()
         asset.fieldSources = it.fieldSources ?: emptyMap()
+        asset.lastUpdated = it.lastUpdated
         return asset
     }
 
@@ -169,8 +170,9 @@ class DesktopDataSource : AssetDataSource {
     override fun importBackup(json: String): Boolean {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-            val data: List<Map<String, String>> = gson.fromJson(json, typeToken)
-            val cleanedList = data.mapNotNull { item ->
+            val importedData: List<Map<String, String>> = gson.fromJson(json, typeToken)
+            
+            val importedAssets = importedData.mapNotNull { item ->
                 val type = item["type"]
                 val jsonData = item["json"]
                 val asset = when (type) {
@@ -182,7 +184,28 @@ class DesktopDataSource : AssetDataSource {
                 }
                 asset?.let { safeAsset(it) }
             }
-            saveAll(cleanedList)
+            
+            val localAssets = getAllAssets().toMutableList()
+            var changed = false
+            
+            importedAssets.forEach { imported ->
+                val localIndex = localAssets.indexOfFirst { it.ticker == imported.ticker }
+                if (localIndex == -1) {
+                    localAssets.add(imported)
+                    changed = true
+                } else {
+                    val local = localAssets[localIndex]
+                    // Mesclagem Granular: Só substitui se o importado for mais recente
+                    if (imported.lastUpdated > local.lastUpdated) {
+                        localAssets[localIndex] = imported
+                        changed = true
+                    }
+                }
+            }
+            
+            if (changed) {
+                saveAll(localAssets)
+            }
             true
         } catch (e: Exception) {
             false

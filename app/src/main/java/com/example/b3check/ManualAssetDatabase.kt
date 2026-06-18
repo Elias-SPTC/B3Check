@@ -30,6 +30,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
 
     private fun safeAsset(it: AssetData): AssetData {
         val sources = it.fieldSources ?: emptyMap()
+        val lastUpd = it.lastUpdated
         val asset = when(it) {
             is AssetData.Stock -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
@@ -57,6 +58,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
             )
         }
         asset.fieldSources = sources
+        asset.lastUpdated = lastUpd
         return asset
     }
 
@@ -143,14 +145,20 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
                 data.forEach { item ->
                     val type = item["type"]
                     val jsonData = item["json"]
-                    val asset = when (type) {
+                    val imported = when (type) {
                         "STOCK" -> gson.fromJson(jsonData, AssetData.Stock::class.java)
                         "FII" -> gson.fromJson(jsonData, AssetData.Fii::class.java)
                         "ETF" -> gson.fromJson(jsonData, AssetData.Etf::class.java)
                         "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
                         else -> null
                     }
-                    asset?.let { saveAsset(it) }
+                    
+                    if (imported != null) {
+                        val local = getAsset(imported.ticker)
+                        if (local == null || imported.lastUpdated > local.lastUpdated) {
+                            saveAsset(imported)
+                        }
+                    }
                 }
                 db.setTransactionSuccessful()
                 true

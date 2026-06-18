@@ -108,6 +108,8 @@ fun AssetListScreen(
     var tickerToDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var showIntegrityReport by rememberSaveable { mutableStateOf(false) }
     var showRecalcSuccess by rememberSaveable { mutableStateOf(false) }
+    var showImportSuccess by rememberSaveable { mutableStateOf(false) }
+    var showExportSuccess by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllAssets()
@@ -163,14 +165,32 @@ fun AssetListScreen(
         )
     }
 
+    if (showImportSuccess) {
+        AlertDialog(
+            onDismissRequest = { showImportSuccess = false },
+            title = { Text("Importação", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("✅ Banco de dados importado e mesclado com sucesso!", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = { Button(onClick = { showImportSuccess = false }) { Text("Fechar") } }
+        )
+    }
+
+    if (showExportSuccess) {
+        AlertDialog(
+            onDismissRequest = { showExportSuccess = false },
+            title = { Text("Exportação", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("✅ Backup gerado com sucesso!", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = { Button(onClick = { showExportSuccess = false }) { Text("Fechar") } }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Meus Ativos", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
             Row {
-                IconButton(onClick = { onImport { viewModel.importBackup(it) } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { onImport { viewModel.importBackup(it); showImportSuccess = true } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
-                IconButton(onClick = { onExport(viewModel.exportBackup(), "${viewModel.getCurrentDate()}-B3Check.json") }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { onExport(viewModel.exportBackup(), "${viewModel.getCurrentDate()}-B3Check.json"); showExportSuccess = true }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

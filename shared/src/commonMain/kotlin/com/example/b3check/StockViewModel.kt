@@ -65,6 +65,7 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
     }
 
     fun saveManualAsset(data: AssetData) {
+        data.lastUpdated = System.currentTimeMillis()
         viewModelScope.launch {
             db.saveAsset(data)
             loadAllAssets()

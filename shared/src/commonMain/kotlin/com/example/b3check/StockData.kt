@@ -18,6 +18,7 @@ sealed class AssetData {
     var cons: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet()
     var fieldSources: Map<String, FieldSource>? = emptyMap()
+    var lastUpdated: Long = 0L
 
     data class Stock(
         override val ticker: String,
