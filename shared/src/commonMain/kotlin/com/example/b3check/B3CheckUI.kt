@@ -197,7 +197,10 @@ fun AssetListScreen(
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn {
             items(assets) { asset ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).clickable { viewModel.lookupTicker(asset.ticker); onAssetClick() }) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).clickable { viewModel.lookupTicker(asset.ticker); onAssetClick() },
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -280,7 +283,10 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel) {
             val curPerc = if (totalVal > 0) (curVal / totalVal) * 100.0 else 0.0
             val curColor = if (curPerc < ideal) Color.Red else MaterialTheme.colorScheme.onSurface
 
-            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text(asset.ticker, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
@@ -317,10 +323,14 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel) {
 
         if (equilibriumAmount > 0) {
             Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Para equilíbrio total é necessário:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                Text("${formatBR(equilibriumAmount)}", fontSize = 12.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Black)
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Para equilíbrio total é necessário:", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                    Text(formatBR(equilibriumAmount), fontSize = 12.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Black)
+                }
             }
         }
     }
@@ -405,7 +415,7 @@ fun InvestScreen(viewModel: StockViewModel) {
             itemsIndexed(portfolio) { index, asset ->
                 val qtySuggest = suggestions.first[asset.ticker] ?: 0
                 val montanteSug = suggestions.second[asset.ticker] ?: 0.0
-                val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else Color.Transparent
+                val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
                 val montanteAtual = asset.sharesCount * asset.currentPrice
                 
                 Row(modifier = Modifier.fillMaxWidth().background(rowBg).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -476,20 +486,25 @@ fun InvestScreen(viewModel: StockViewModel) {
             }
             
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.onSurface)
                 val totalCurrentVal = portfolio.sumOf { it.sharesCount * it.currentPrice }
                 val totalSugVal = suggestions.second.values.sum()
                 val totalSugQty = suggestions.first.values.sum()
                 
-                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(32.dp).padding(end = 4.dp))
-                    Text("TOTAIS", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Black, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Text("", modifier = Modifier.weight(1f))
-                    Text("", modifier = Modifier.weight(1.1f))
-                    Text(formatBR(totalCurrentVal), modifier = Modifier.weight(1.3f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                    Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
-                        Text("${totalSugQty} un", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color(0xFF2E7D32))
-                        Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Spacer(Modifier.width(32.dp).padding(end = 4.dp))
+                        Text("TOTAIS", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Black, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("", modifier = Modifier.weight(1f))
+                        Text("", modifier = Modifier.weight(1.1f))
+                        Text(formatBR(totalCurrentVal), modifier = Modifier.weight(1.3f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
+                            Text("${totalSugQty} un", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color(0xFF2E7D32))
+                            Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
             }
@@ -544,26 +559,44 @@ fun RecommendationsScreen(viewModel: StockViewModel) {
 
                 val pvp = when(asset) { is AssetData.Stock -> asset.pvp; is AssetData.Fii -> asset.pvp; else -> 0.0 }
                 val isSelected = selected[asset.ticker] ?: false
-                val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else Color.Transparent
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else rowBg).clickable { selected[asset.ticker] = !isSelected }.padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isSelected, onCheckedChange = { selected[asset.ticker] = it })
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Row {
-                            Text("Nota: ${formatBR(score)}", fontSize = 11.sp)
-                            if (pvp > 0) Text(" • P/VP: ${formatBR(pvp)}", fontSize = 11.sp, color = if(pvp<1.0) Color(0xFF2E7D32) else Color.Gray)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 1.dp)
+                        .clickable { selected[asset.ticker] = !isSelected },
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) 
+                                         else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = isSelected, 
+                            onCheckedChange = { selected[asset.ticker] = it },
+                            modifier = Modifier.size(32.dp).padding(end = 8.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(asset.ticker, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                if (pvp > 0) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("P/VP: ${formatBR(pvp)}", fontSize = 11.sp, color = if(pvp<1.0) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text("Nota: ${formatBR(score)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
-                    }
-                    if (qtySuggest > 0) {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            if (qtySuggest >= 100 && asset is AssetData.Stock) {
-                                val lots = qtySuggest / 100
-                                val rem = qtySuggest % 100
-                                Text("${lots} lotes" + (if(rem>0) " + $rem" else ""), fontSize = 11.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                        if (qtySuggest > 0) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                if (qtySuggest >= 100 && asset is AssetData.Stock) {
+                                    val lots = qtySuggest / 100
+                                    val rem = qtySuggest % 100
+                                    Text("${lots} lotes" + (if(rem>0) " + $rem" else ""), fontSize = 11.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
