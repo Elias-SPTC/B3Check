@@ -298,6 +298,9 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 if (data.propertyCount > 5) { base += 0.5; prosList.add("Portfólio Multi-Propriedade") }
                 if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") }
                 
+                if (data.managementFee <= 0.01 && data.managementFee > 0) { base += 0.5; prosList.add("Taxa de Adm Competitiva") }
+                else if (data.managementFee > 0.015) { consList.add("Taxa de Adm Elevada: ${formatBR(data.managementFee*100)}%") }
+
                 if (data.aum < 300_000_000 && data.aum > 0) consList.add("Fundo de Pequeno Porte (Risco de Liquidez)")
                 if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
             }

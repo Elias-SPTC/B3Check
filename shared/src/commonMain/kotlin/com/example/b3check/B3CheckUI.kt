@@ -806,6 +806,23 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         } else if (data is AssetData.Fii) {
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }; EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, sourceStates["y12"]) { indicatorStates["y12"] = it; sourceStates["y12"] = FieldSource.USER }; EditRow("DY Médio 5a (%)", indicatorStates["y5"] ?: "", true, sourceStates["y5"]) { indicatorStates["y5"] = it; sourceStates["y5"] = FieldSource.USER }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, sourceStates["vac"]) { indicatorStates["vac"] = it; sourceStates["vac"] = FieldSource.USER }; EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, sourceStates["walt"]) { indicatorStates["walt"] = it; sourceStates["walt"] = FieldSource.USER }; EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true, sourceStates["mLev"]) { indicatorStates["mLev"] = it; sourceStates["mLev"] = FieldSource.USER }; EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, sourceStates["prop"]) { indicatorStates["prop"] = it; sourceStates["prop"] = FieldSource.USER }
+            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, sourceStates["mFee"]) { indicatorStates["mFee"] = it; sourceStates["mFee"] = FieldSource.USER }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }
+            
+            var showManagementMenu by remember { mutableStateOf(false) }
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Gestão", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                Box(modifier = Modifier.weight(1.8f)) {
+                    OutlinedButton(onClick = { showManagementMenu = true }, modifier = Modifier.fillMaxWidth().height(32.dp), contentPadding = PaddingValues(0.dp)) {
+                        Text(if (indicatorStates["mType"].isNullOrBlank()) "Selecionar" else indicatorStates["mType"]!!, fontSize = 13.sp)
+                    }
+                    DropdownMenu(expanded = showManagementMenu, onDismissRequest = { showManagementMenu = false }) {
+                        listOf("Ativa", "Passiva").forEach { type ->
+                            DropdownMenuItem(text = { Text(type) }, onClick = { indicatorStates["mType"] = type; showManagementMenu = false })
+                        }
+                    }
+                }
+            }
+
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Text("Nota Inquilino", fontSize = 12.sp); Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "tenant" }, tint = Color.Gray) }
                 Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) { val cur = (indicatorStates["tScore"] ?: "0").toInt(); (0..5).forEach { s -> TextButton(onClick = { indicatorStates["tScore"] = s.toString(); sourceStates["tScore"] = FieldSource.USER }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) { Text(text = s.toString(), fontWeight = if (cur == s) FontWeight.Bold else FontWeight.Normal, color = if (cur == s) Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface) } } }
