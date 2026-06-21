@@ -10,4 +10,6 @@ interface AssetDataSource {
     fun getAllAssets(): List<AssetData>
     fun exportBackup(): String
     fun importBackup(json: String): Boolean
+    fun getSettings(key: String): String
+    fun saveSettings(key: String, value: String)
 }

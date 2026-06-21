@@ -71,7 +71,8 @@ class DesktopDataSource : AssetDataSource {
                 isInert = it.isInert,
                 userScore = it.userScore,
                 userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage
+                userScoreAverage = it.userScoreAverage,
+                netEquity = it.netEquity
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", 
@@ -108,6 +109,7 @@ class DesktopDataSource : AssetDataSource {
         asset.cons = it.cons ?: emptyList()
         asset.fieldSources = it.fieldSources ?: emptyMap()
         asset.lastUpdated = it.lastUpdated
+        asset.qualitativeInsights = it.qualitativeInsights ?: emptyMap()
         return asset
     }
 
@@ -167,6 +169,20 @@ class DesktopDataSource : AssetDataSource {
 
     override fun exportBackup(): String = storageFile.readText()
     
+    override fun getSettings(key: String): String {
+        val home = System.getProperty("user.home")
+        val settingsFile = File(home, ".b3check/settings_$key.txt")
+        return if (settingsFile.exists()) settingsFile.readText() else ""
+    }
+
+    override fun saveSettings(key: String, value: String) {
+        val home = System.getProperty("user.home")
+        val configDir = File(home, ".b3check")
+        if (!configDir.exists()) configDir.mkdirs()
+        val settingsFile = File(configDir, "settings_$key.txt")
+        settingsFile.writeText(value.trim())
+    }
+
     override fun importBackup(json: String): Boolean {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type

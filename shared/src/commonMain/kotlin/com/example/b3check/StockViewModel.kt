@@ -49,6 +49,85 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         _uiState.value = StockUiState.Idle
     }
 
+    private val ai = getAiService()
+    var geminiApiKey: String
+        get() = db.getSettings("gemini_key")
+        set(value) = db.saveSettings("gemini_key", value.filter { !it.isWhitespace() })
+
+    private val _aiStatus = MutableStateFlow("Pronto")
+    val aiStatus: StateFlow<String> = _aiStatus.asStateFlow()
+
+    fun askAi(ticker: String, question: String) {
+        if (geminiApiKey.isBlank()) {
+            _aiStatus.value = "Chave Ausente"
+            return
+        }
+        _aiStatus.value = "Consultando..."
+        viewModelScope.launch {
+            try {
+                val asset = db.getAsset(ticker) ?: return@launch
+                val response = ai.ask(ticker, question, geminiApiKey)
+                
+                // Só salva se NÃO for uma mensagem de erro (404, 429, etc)
+                if (!response.startsWith("Erro:")) {
+                    val sources = asset.fieldSources?.toMutableMap() ?: mutableMapOf()
+                    val updated = when(asset) {
+                        is AssetData.Stock -> asset.copy()
+                        is AssetData.Fii -> asset.copy()
+                        is AssetData.Etf -> {
+                            val data = parseAiResponse(response)
+                            var current = asset
+                            if (data.containsKey("aFee")) { current = current.copy(adminFee = data["aFee"]!!); sources["aFee"] = FieldSource.AI }
+                            if (data.containsKey("te")) { current = current.copy(trackingError = data["te"]!!); sources["te"] = FieldSource.AI }
+                            if (data.containsKey("vol")) { current = current.copy(avgDailyVolume = data["vol"]!!); sources["vol"] = FieldSource.AI }
+                            if (data.containsKey("aum")) { current = current.copy(aum = data["aum"]!!); sources["aum"] = FieldSource.AI }
+                            if (data.containsKey("hold")) { current = current.copy(numberOfHoldings = data["hold"]!!.toInt()); sources["hold"] = FieldSource.AI }
+                            current
+                        }
+                        is AssetData.Bdr -> asset.copy()
+                    }
+                    
+                    updated.qualitativeInsights = asset.qualitativeInsights + (question to response)
+                    updated.fieldSources = sources
+                    updated.pros = asset.pros
+                    updated.cons = asset.cons
+                    
+                    saveManualAsset(updated)
+                    _aiStatus.value = "Concluído"
+                } else {
+                    // Mostra o erro na tela temporariamente mas NÃO salva no banco
+                    _uiState.value = StockUiState.Success(asset.apply { 
+                        qualitativeInsights = asset.qualitativeInsights + (question to response)
+                    }, calculateScoreForAsset(asset))
+                    _aiStatus.value = "Erro na IA"
+                }
+            } catch (e: Exception) {
+                _aiStatus.value = "Erro na IA"
+            }
+        }
+    }
+
+    private fun parseAiResponse(response: String): Map<String, Double> {
+        val map = mutableMapOf<String, Double>()
+        val keys = listOf("aFee", "te", "vol", "aum", "hold")
+        keys.forEach { key ->
+            val pattern = "\"$key\"\\s*:\\s*([0-9.]+)"
+            val regex = Regex(pattern)
+            val match = regex.find(response)
+            match?.groupValues?.get(1)?.toDoubleOrNull()?.let { map[key] = it }
+        }
+        return map
+    }
+
+    fun bulkAskAiEtfs() {
+        if (geminiApiKey.isBlank()) return
+        val etfs = allAssets.value.filterIsInstance<AssetData.Etf>()
+        etfs.forEach { etf ->
+            val prompt = "Forneça Taxa de administração (aFee), tracking error (te), volume diário (vol), patrimônio (aum) e holdings (hold). Responda APENAS um JSON plano com essas chaves e valores numéricos."
+            askAi(etf.ticker, prompt)
+        }
+    }
+
     fun addManualAsset(ticker: String, type: String) {
         val asset = createSkeleton(ticker, type)
         saveManualAsset(asset)
@@ -66,11 +145,13 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
 
     fun saveManualAsset(data: AssetData) {
         data.lastUpdated = System.currentTimeMillis()
+        // Calcula antes de salvar para garantir que prós/contras entrem no JSON do banco
+        val score = calculateScoreForAsset(data)
         viewModelScope.launch {
             db.saveAsset(data)
             loadAllAssets()
             if ((_uiState.value as? StockUiState.Success)?.data?.ticker == data.ticker) {
-                _uiState.value = StockUiState.Success(data, calculateScoreForAsset(data))
+                _uiState.value = StockUiState.Success(data, score)
             }
         }
     }
@@ -186,6 +267,8 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 else if (data.payout > 0.9) { consList.add("Payout Elevado (Risco p/ Reservas): ${formatBR(data.payout*100)}%") }
                 else { consList.add("Payout Baixo ou Retenção Excessiva: ${formatBR(data.payout*100)}%") }
                 
+                if (data.netEquity >= 1_000_000_000.0) { base += 0.5; prosList.add("Empresa de Grande Porte (Blue Chip)") }
+                
                 if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária (Ações)")
             }
             is AssetData.Fii -> {
@@ -268,7 +351,7 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
 
     fun exportBackup(): String {
         val json = db.exportBackup()
-        return if (json.isBlank()) "{}" else json
+        return json.ifBlank { "{}" }
     }
     fun importBackup(j: String) { viewModelScope.launch { if (db.importBackup(j)) loadAllAssets() } }
 

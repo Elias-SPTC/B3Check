@@ -1,6 +1,6 @@
 package com.example.b3check
 
-enum class FieldSource { INTERNET, SIMULATION, USER, DIVERGENT }
+enum class FieldSource { INTERNET, SIMULATION, USER, DIVERGENT, AI }
 
 sealed class AssetData {
     abstract val ticker: String
@@ -19,6 +19,7 @@ sealed class AssetData {
     var mockedFields: Set<String> = emptySet()
     var fieldSources: Map<String, FieldSource>? = emptyMap()
     var lastUpdated: Long = 0L
+    var qualitativeInsights: Map<String, String> = emptyMap()
 
     data class Stock(
         override val ticker: String,
@@ -31,6 +32,7 @@ sealed class AssetData {
         val dividendYield5Years: Double = 0.0,
         val paidDividendsLast5Years: Boolean = true,
         val netDebt: Double = 0.0,
+        val netEquity: Double = 0.0,
         val ebitda: Double = 0.0,
         val netMargin: Double = 0.0,
         val cagrProfit5Years: Double = 0.0,

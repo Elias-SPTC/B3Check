@@ -6,7 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.google.gson.Gson
 
-class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.db", null, 6), AssetDataSource {
+class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.db", null, 7), AssetDataSource {
     private val gson = Gson()
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -17,26 +17,49 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
                 json TEXT
             )
         """.trimIndent())
+        db.execSQL("CREATE TABLE settings (s_key TEXT PRIMARY KEY, s_value TEXT)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
-        // Migração simples: limpa e recria se mudar versão, ou adicione colunas se necessário.
-        // No nosso caso, como salvamos o objeto todo em JSON, apenas limpamos se a estrutura mudar drasticamente.
         if (old < 6) {
             db.execSQL("DROP TABLE IF EXISTS assets")
             onCreate(db)
         }
+        if (old < 7) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS settings (s_key TEXT PRIMARY KEY, s_value TEXT)")
+        }
+    }
+
+    override fun getSettings(key: String): String {
+        val db = readableDatabase
+        val cursor = try {
+            db.query("settings", arrayOf("s_value"), "s_key=?", arrayOf(key), null, null, null)
+        } catch (e: Exception) { null }
+        return cursor?.use {
+            if (it.moveToFirst()) it.getString(0) else ""
+        } ?: ""
+    }
+
+    override fun saveSettings(key: String, value: String) {
+        val db = writableDatabase
+        val cv = ContentValues().apply {
+            put("s_key", key)
+            put("s_value", value)
+        }
+        db.insertWithOnConflict("settings", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     private fun safeAsset(it: AssetData): AssetData {
         val sources = it.fieldSources ?: emptyMap()
         val lastUpd = it.lastUpdated
+        val insights = it.qualitativeInsights ?: emptyMap()
         val asset = when(it) {
             is AssetData.Stock -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
                 userScore = it.userScore, userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
-                isInert = it.isInert
+                isInert = it.isInert,
+                netEquity = it.netEquity
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
@@ -59,6 +82,7 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
         }
         asset.fieldSources = sources
         asset.lastUpdated = lastUpd
+        asset.qualitativeInsights = insights
         return asset
     }
 
