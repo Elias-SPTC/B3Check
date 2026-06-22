@@ -68,7 +68,6 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 val asset = db.getAsset(ticker) ?: return@launch
                 val response = ai.ask(ticker, question, geminiApiKey)
                 
-                // Só salva se NÃO for uma mensagem de erro (404, 429, etc)
                 if (!response.startsWith("Erro:")) {
                     val sources = asset.fieldSources?.toMutableMap() ?: mutableMapOf()
                     val updated = when(asset) {
@@ -95,7 +94,6 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                     saveManualAsset(updated)
                     _aiStatus.value = "Concluído"
                 } else {
-                    // Mostra o erro na tela temporariamente mas NÃO salva no banco
                     _uiState.value = StockUiState.Success(asset.apply { 
                         qualitativeInsights = asset.qualitativeInsights + (question to response)
                     }, calculateScoreForAsset(asset))
@@ -145,7 +143,6 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
 
     fun saveManualAsset(data: AssetData) {
         data.lastUpdated = System.currentTimeMillis()
-        // Calcula antes de salvar para garantir que prós/contras entrem no JSON do banco
         val score = calculateScoreForAsset(data)
         viewModelScope.launch {
             db.saveAsset(data)
@@ -199,131 +196,166 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }
         
         var base = 0.0
+        var totalWeight = 0.0
         val prosList = mutableListOf<String>()
         val consList = mutableListOf<String>()
+        val sources = data.fieldSources ?: emptyMap()
 
         when (data) {
             is AssetData.Stock -> {
-                val sec = (data.sector ?: "").trim().lowercase()
-                val sub = (data.subSector ?: "").trim().lowercase()
+                val sec = data.sector.trim().lowercase()
+                val sub = data.subSector.trim().lowercase()
                 val isBank = sub.contains("banco")
                 val isInsurance = sub.contains("seguradora")
                 val isHolding = sub.contains("holding")
+                val isFinancial = isBank || isInsurance || isHolding
                 val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica") || sub.contains("saneamento")
 
                 // 1. Rentabilidade (ROE)
-                val roeMeta = when {
-                    isBank || isInsurance || isHolding -> 0.12
-                    isUtility || data.ticker.startsWith("VALE") || data.ticker.startsWith("VIVT") -> 0.10
-                    else -> 0.14
+                if (sources.containsKey("roe")) {
+                    totalWeight += 2.5
+                    val roeMeta = if (isFinancial) 0.15 else if (isUtility || data.ticker.startsWith("VALE")) 0.10 else 0.14
+                    if (data.roe >= roeMeta) { base += 2.5; prosList.add("ROE Superior: ${formatBR(data.roe*100)}%") }
+                    else { consList.add("ROE abaixo da meta ideal para o setor") }
                 }
-                if (data.roe >= roeMeta) { base += 2.0; prosList.add("ROE Superior: ${formatBR(data.roe*100)}%") }
-                else { base += 1.0; consList.add("ROE abaixo da meta ideal") }
 
                 // 2. Solvência
                 if (isBank) {
-                    if (data.baselIndex >= 0.14) { base += 2.0; prosList.add("Basileia Sólida") }
-                    else { base += 0.5; consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}%") }
-                } else {
+                    if (sources.containsKey("basel")) {
+                        totalWeight += 2.0
+                        if (data.baselIndex >= 0.14) { base += 2.0; prosList.add("Basileia Sólida: ${formatBR(data.baselIndex*100)}%") }
+                        else { base += 0.5; consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}%") }
+                    }
+                } else if (!isInsurance && !isHolding) {
                     val debtLimit = if (isUtility) 4.5 else 3.0
-                    var solvPts = 0.0
-                    if (data.debtToEbitda < debtLimit) { solvPts += 1.0; prosList.add("Dív/EBITDA Saudável") }
-                    else { consList.add("Dívida/EBITDA Elevada: ${formatBR(data.debtToEbitda)}x") }
-
-                    if (data.debtToEquity < 1.0) { solvPts += 1.0; prosList.add("Dív/Patrimônio Sob Controle") }
-                    else { consList.add("Dív/Patrimônio Elevada: ${formatBR(data.debtToEquity)}") }
-                    
-                    base += solvPts.coerceAtMost(2.0)
+                    if (sources.containsKey("deEbitda")) {
+                        totalWeight += 1.0
+                        if (data.debtToEbitda < debtLimit) { base += 1.0; prosList.add("Dív/EBITDA Saudável") }
+                        else { consList.add("Dívida/EBITDA Elevada (${formatBR(data.debtToEbitda)}x)") }
+                    }
+                    if (sources.containsKey("de")) {
+                        totalWeight += 1.0
+                        if (data.debtToEquity < 1.0) { base += 1.0; prosList.add("Dív/Patrimônio Sob Controle") }
+                        else { consList.add("Dív/Patrimônio Elevada (${formatBR(data.debtToEquity)})") }
+                    }
                 }
 
                 // 3. Eficiência e Crescimento
-                if (data.netMargin > 0.10 || isBank) { base += 1.0; prosList.add("Boa Eficiência Operacional") }
-                else { consList.add("Margem Líquida Estreita") }
-
-                if (data.cagrProfit5Years >= 0.10) { base += 1.0; prosList.add("Forte Crescimento de Lucro") }
-                else if (data.cagrProfit5Years >= 0) { base += 0.5; prosList.add("Lucratividade Resiliente") }
-                else { consList.add("Histórico: Lucros em Queda") }
-
-                if (data.cagrRevenue5Years >= 0.10) { base += 0.5; prosList.add("Crescimento de Receita Sólido") }
-                else if (data.cagrRevenue5Years < 0.05) { consList.add("Crescimento de Receita Baixo/Nulo") }
+                if (sources.containsKey("ml") || isBank) {
+                    totalWeight += 1.0
+                    if (data.netMargin > 0.10 || isBank) { base += 1.0; prosList.add("Boa Eficiência Operacional") }
+                    else { consList.add("Margem Líquida Estreita") }
+                }
+                if (sources.containsKey("cLuc")) {
+                    totalWeight += 1.0
+                    if (data.cagrProfit5Years >= 0.08) { base += 1.0; prosList.add("Crescimento de Lucro (5a)") }
+                    else if (data.cagrProfit5Years < 0) { consList.add("Histórico: Lucros em Queda") }
+                }
+                if (!isBank && sources.containsKey("cRec")) {
+                    totalWeight += 0.5
+                    if (data.cagrRevenue5Years >= 0.08) { base += 0.5; prosList.add("Crescimento de Receita Sólido") }
+                }
 
                 // 4. Valuation
-                if (data.pvp in 0.1..2.0) { base += 1.0; prosList.add("Preço/VP Atrativo") }
-                else { consList.add("Valuation Esticado (P/VP): ${formatBR(data.pvp)}") }
-
-                if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
-                else { base += 0.5; consList.add("Múltiplo P/L Fora da Faixa Ideal: ${formatBR(data.pl)}x") }
+                if (sources.containsKey("pvp")) {
+                    totalWeight += 1.0
+                    val pvpLimit = if (isBank) 1.8 else 2.0
+                    if (data.pvp in 0.1..pvpLimit) { base += 1.0; prosList.add("Preço/VP Atrativo") }
+                    else { consList.add("Valuation Esticado (P/VP): ${formatBR(data.pvp)}") }
+                }
+                if (sources.containsKey("pl")) {
+                    totalWeight += 1.0
+                    if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
+                    else { base += 0.5; consList.add("Múltiplo P/L Fora da Faixa Ideal: ${formatBR(data.pl)}x") }
+                }
 
                 // 5. Dividendos e Payout
-                var divPts = 0.0
-                if (data.dividendYield >= 0.05) { divPts += 0.5; prosList.add("DY Atual Forte") }
-                else { consList.add("DY Atual Abaixo de 5%") }
-
-                if (data.dividendYield5Years >= 0.05) { divPts += 0.5; prosList.add("Excelente Histórico de Proventos") }
-                else { consList.add("Falta de Consistência nos Proventos (5a)") }
-                base += divPts
-
-                if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável: ${formatBR(data.payout*100)}%") }
-                else if (data.payout > 0.9) { consList.add("Payout Elevado (Risco p/ Reservas): ${formatBR(data.payout*100)}%") }
-                else { consList.add("Payout Baixo ou Retenção Excessiva: ${formatBR(data.payout*100)}%") }
-                
-                if (data.netEquity >= 1_000_000_000.0) { base += 0.5; prosList.add("Empresa de Grande Porte (Blue Chip)") }
-                
-                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária (Ações)")
+                if (sources.containsKey("dy")) {
+                    totalWeight += 0.5
+                    if (data.dividendYield >= 0.05) { base += 0.5; prosList.add("DY Atual Forte") }
+                }
+                if (sources.containsKey("dy5")) {
+                    totalWeight += 0.5
+                    if (data.dividendYield5Years >= 0.05) { base += 0.5; prosList.add("Excelente Histórico de Proventos") }
+                }
+                if (sources.containsKey("payout")) {
+                    totalWeight += 0.5
+                    if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável") }
+                }
+                if (sources.containsKey("netEquity")) {
+                    totalWeight += 0.5
+                    if (data.netEquity >= 1_000_000_000.0) { base += 0.5; prosList.add("Empresa de Grande Porte") }
+                }
             }
             is AssetData.Fii -> {
-                // 1. Valuation
-                if (data.pvp in 0.92..1.06) { base += 2.0; prosList.add("Preço Justo (P/VP)") }
-                else if (data.pvp < 0.92) { base += 1.5; prosList.add("Oportunidade (Desconto)") }
-                else { consList.add("Ágio Elevado: P/VP ${formatBR(data.pvp)}") }
-
-                // 2. Rendimentos
-                var yldPts = 0.0
-                if (data.yield12m >= 0.09) yldPts += 1.5
-                if (data.avgYield5Years >= 0.08) yldPts += 1.0
-                if (yldPts >= 2.0) prosList.add("Rendimentos Fortes e Consistentes")
-                else consList.add("Rendimento ou Consistência abaixo do ideal")
-                base += yldPts
-
-                // 3. Qualitativo (Manual)
-                base += data.tenantScore * 0.3 // Max 1.5
-                base += data.leverageScore * 0.3 // Max 1.5
-                if (data.tenantScore >= 4) prosList.add("Excelente Mix de Inquilinos")
-                if (data.leverageScore >= 4) prosList.add("Alavancagem Sob Controle")
-
-                // 4. Operacional
-                if (data.vacancy < 0.10) { base += 0.5; prosList.add("Baixa Vacância") }
-                else { consList.add("Vacância em Alerta: ${formatBR(data.vacancy*100)}%") }
-
-                if (data.propertyCount > 5) { base += 0.5; prosList.add("Portfólio Multi-Propriedade") }
-                if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") }
-                
-                if (data.managementFee <= 0.01 && data.managementFee > 0) { base += 0.5; prosList.add("Taxa de Adm Competitiva") }
-                else if (data.managementFee > 0.015) { consList.add("Taxa de Adm Elevada: ${formatBR(data.managementFee*100)}%") }
-
-                if (data.aum < 300_000_000 && data.aum > 0) consList.add("Fundo de Pequeno Porte (Risco de Liquidez)")
-                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
+                if (sources.containsKey("pvp")) {
+                    totalWeight += 2.0
+                    if (data.pvp in 0.92..1.06) { base += 2.0; prosList.add("Preço Justo (P/VP)") }
+                    else if (data.pvp < 0.92) { base += 1.5; prosList.add("Oportunidade (Desconto)") }
+                    else { consList.add("Ágio Elevado: P/VP ${formatBR(data.pvp)}") }
+                }
+                if (sources.containsKey("y12")) {
+                    totalWeight += 1.5
+                    if (data.yield12m >= 0.09) { base += 1.5; prosList.add("Rendimentos Fortes") }
+                }
+                if (sources.containsKey("y5")) {
+                    totalWeight += 1.0
+                    if (data.avgYield5Years >= 0.08) { base += 1.0; prosList.add("Consistência de Yield (5a)") }
+                }
+                if (sources.containsKey("tScore")) {
+                    totalWeight += 1.5
+                    base += data.tenantScore * 0.3
+                    if (data.tenantScore >= 4) prosList.add("Inquilinos de Qualidade")
+                }
+                if (sources.containsKey("lScore")) {
+                    totalWeight += 1.5
+                    base += data.leverageScore * 0.3
+                    if (data.leverageScore >= 4) prosList.add("Alavancagem Sob Controle")
+                }
+                if (sources.containsKey("vac")) {
+                    totalWeight += 0.5
+                    if (data.vacancy < 0.10) { base += 0.5; prosList.add("Baixa Vacância") }
+                }
+                if (sources.containsKey("prop")) {
+                    totalWeight += 0.5
+                    if (data.propertyCount > 5) { base += 0.5; prosList.add("Multi-Propriedade") }
+                }
+                if (sources.containsKey("mType")) {
+                    totalWeight += 0.5
+                    if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") }
+                }
+                if (sources.containsKey("mFee")) {
+                    totalWeight += 0.5
+                    if (data.managementFee <= 0.01 && data.managementFee > 0) { base += 0.5; prosList.add("Taxa de Adm Baixa") }
+                }
             }
             is AssetData.Etf -> {
-                if (data.adminFee <= 0.005) { base += 4.0; prosList.add("Taxa Adm Baixa") }
-                else { consList.add("Taxa Adm Elevada") }
-                
-                if (data.trackingError <= 0.02) { base += 3.0; prosList.add("Alta Fidelidade ao Índice") }
-                
-                if (data.numberOfHoldings > 50) { base += 2.0; prosList.add("Alta Diversificação (+50 ativos)") }
-                
-                if (data.aum >= 100_000_000) { base += 1.0; prosList.add("Alta Liquidez/AUM") }
-                else { consList.add("Patrimônio Reduzido") }
-                if (data.avgDailyVolume > 0 && data.avgDailyVolume < 1_000_000) consList.add("Baixa Liquidez Diária")
+                if (sources.containsKey("aFee")) {
+                    totalWeight += 4.0
+                    if (data.adminFee <= 0.005) { base += 4.0; prosList.add("Taxa Adm Baixa") }
+                }
+                if (sources.containsKey("te")) {
+                    totalWeight += 3.0
+                    if (data.trackingError <= 0.02) { base += 3.0; prosList.add("Baixo Tracking Error") }
+                }
+                if (sources.containsKey("hold")) {
+                    totalWeight += 2.0
+                    if (data.numberOfHoldings > 50) { base += 2.0; prosList.add("Alta Diversificação") }
+                }
+                if (sources.containsKey("aum")) {
+                    totalWeight += 1.0
+                    if (data.aum >= 100_000_000) { base += 1.0; prosList.add("Porte Saudável") }
+                }
             }
             is AssetData.Bdr -> {
+                totalWeight += 10.0
                 if (data.dividendYield > 0.02) { base += 5.0; prosList.add("BDR Pagador") }
                 if (data.parity == "1:1") { base += 5.0; prosList.add("Paridade Direta") }
-                else { base += 3.0; consList.add("Paridade Fracionada") }
+                else { base += 3.0 }
             }
         }
 
-        val rawScore = base.coerceIn(0.0, 10.0)
+        val rawScore = if (totalWeight > 0) (base / totalWeight) * 10.0 else 0.0
         val final = if (data.userScoreAverage && data.userScore > 0) (rawScore + data.userScore) / 2.0 else rawScore
 
         data.pros = prosList
