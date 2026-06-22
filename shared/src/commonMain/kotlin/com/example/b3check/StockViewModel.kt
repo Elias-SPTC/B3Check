@@ -90,6 +90,7 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                     updated.fieldSources = sources
                     updated.pros = asset.pros
                     updated.cons = asset.cons
+                    updated.neutros = asset.neutros
                     
                     saveManualAsset(updated)
                     _aiStatus.value = "Concluído"
@@ -191,16 +192,12 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
     fun calculateScoreForAsset(data: AssetData): Double {
         if (data.userScorePriority && data.userScore > 0) {
             data.pros = listOf("Prioridade Manual Ativa")
-            data.cons = emptyList()
+            data.cons = emptyList(); data.neutros = emptyList()
             return data.userScore
         }
         
-        var base = 0.0
-        var totalWeight = 0.0
-        val prosList = mutableListOf<String>()
-        val consList = mutableListOf<String>()
+        val indicatorResults = mutableListOf<Triple<String, Double, Double>>() // Label, Weight, Multiplier (1.0, 0.0, -1.0)
         val sources = data.fieldSources ?: emptyMap()
-
         fun isFilled(key: String, value: Double): Boolean = sources.containsKey(key) || value != 0.0
 
         when (data) {
@@ -211,135 +208,131 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 val isInsurance = sub.contains("seguradora")
                 val isHolding = sub.contains("holding")
                 val isFinancial = isBank || isInsurance || isHolding
-                val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica") || sub.contains("saneamento")
-
-                // 1. ROE (Crucial para todos, mais pesado para Financeiras)
+                val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica")
+                
                 if (isFilled("roe", data.roe)) {
-                    val weight = if (isFinancial) 3.0 else 2.5
-                    totalWeight += weight
-                    val roeMeta = if (isFinancial) 0.15 else if (isUtility || data.ticker.startsWith("VALE")) 0.10 else 0.14
-                    if (data.roe >= roeMeta) { base += weight; prosList.add("ROE Superior: ${formatBR(data.roe*100)}%") }
-                    else { consList.add("ROE abaixo da meta ideal") }
+                    val w = if (isFinancial) 3.0 else 2.5
+                    val meta = if (isFinancial) 0.15 else if (isUtility) 0.10 else 0.14
+                    val m = if (data.roe >= meta) 1.0 else if (data.roe < meta * 0.6) -1.0 else 0.0
+                    indicatorResults.add(Triple("ROE: ${formatBR(data.roe*100)}%", w, m))
                 }
-
-                // 2. Solvência (Diferenciada por Setor)
-                if (isBank) {
-                    if (isFilled("basel", data.baselIndex)) {
-                        totalWeight += 2.0
-                        if (data.baselIndex >= 0.14) { base += 2.0; prosList.add("Basileia Sólida") }
-                        else { base += 0.5; consList.add("Basileia em Alerta") }
-                    }
-                } else if (!isInsurance && !isHolding) {
-                    val debtLimit = if (isUtility) 4.5 else 3.0
+                if (isBank && isFilled("basel", data.baselIndex)) {
+                    val m = if (data.baselIndex >= 0.14) 1.0 else if (data.baselIndex < 0.11) -1.0 else 0.0
+                    indicatorResults.add(Triple("Basileia", 2.0, m))
+                } else if (!isFinancial) {
+                    val limit = if (isUtility) 4.5 else 3.0
                     if (isFilled("deEbitda", data.debtToEbitda)) {
-                        totalWeight += 1.0
-                        if (data.debtToEbitda < debtLimit) { base += 1.0; prosList.add("Endividamento Saudável") }
-                        else { consList.add("Dívida/EBITDA Elevada") }
+                        val m = if (data.debtToEbitda < limit) 1.0 else if (data.debtToEbitda > limit * 1.5) -1.0 else 0.0
+                        indicatorResults.add(Triple("Dívida/EBITDA", 1.0, m))
                     }
                     if (isFilled("de", data.debtToEquity)) {
-                        totalWeight += 1.0
-                        if (data.debtToEquity < 1.0) { base += 1.0; prosList.add("Dív/Patrimônio Controlada") }
-                        else { consList.add("Dív/Patrimônio Elevada") }
+                        val m = if (data.debtToEquity < 1.0) 1.0 else if (data.debtToEquity > 2.0) -1.0 else 0.0
+                        indicatorResults.add(Triple("Dívida/Patrimônio", 1.0, m))
                     }
                 }
-
-                // 3. Eficiência e Crescimento
                 if (isBank || isFilled("ml", data.netMargin)) {
-                    totalWeight += 1.0
-                    if (data.netMargin > 0.10 || isBank) { base += 1.0; prosList.add("Boa Eficiência") }
-                    else { consList.add("Margem Estreita") }
+                    val m = if (data.netMargin > 0.12 || isBank) 1.0 else if (data.netMargin < 0.05) -1.0 else 0.0
+                    indicatorResults.add(Triple("Margem Líquida", 1.0, m))
                 }
                 if (isFilled("cLuc", data.cagrProfit5Years)) {
-                    totalWeight += 1.0
-                    if (data.cagrProfit5Years >= 0.08) { base += 1.0; prosList.add("Crescimento de Lucro") }
+                    val m = if (data.cagrProfit5Years >= 0.08) 1.0 else if (data.cagrProfit5Years < 0) -1.0 else 0.0
+                    indicatorResults.add(Triple("CAGR Lucro (5a)", 1.0, m))
                 }
                 if (!isBank && isFilled("cRec", data.cagrRevenue5Years)) {
-                    totalWeight += 0.5
-                    if (data.cagrRevenue5Years >= 0.08) { base += 0.5; prosList.add("Crescimento de Receita") }
+                    val m = if (data.cagrRevenue5Years >= 0.08) 1.0 else if (data.cagrRevenue5Years < 0) -1.0 else 0.0
+                    indicatorResults.add(Triple("CAGR Receita (5a)", 0.5, m))
                 }
-
-                // 4. Valuation
                 if (isFilled("pvp", data.pvp)) {
-                    totalWeight += 1.0
                     val pvpLimit = if (isBank) 1.8 else 2.0
-                    if (data.pvp in 0.1..pvpLimit) { base += 1.0; prosList.add("P/VP Atrativo") }
-                    else { consList.add("Ágio Elevado (P/VP)") }
+                    val m = if (data.pvp in 0.1..pvpLimit) 1.0 else if (data.pvp > pvpLimit + 1.0) -1.0 else 0.0
+                    indicatorResults.add(Triple("P/VP (Valuation)", 1.0, m))
                 }
                 if (isFilled("pl", data.pl)) {
-                    totalWeight += 1.0
-                    if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
+                    val m = if (data.pl in 1.0..20.0) 1.0 else if (data.pl > 30.0 || data.pl < 0) -1.0 else 0.0
+                    indicatorResults.add(Triple("P/L (Valuation)", 1.0, m))
                 }
-
-                // 5. Dividendos e Porte
                 if (isFilled("dy", data.dividendYield)) {
-                    totalWeight += 0.5
-                    if (data.dividendYield >= 0.05) { base += 0.5; prosList.add("DY Atual Forte") }
+                    val m = if (data.dividendYield >= 0.05) 1.0 else if (data.dividendYield < 0.02) -1.0 else 0.0
+                    indicatorResults.add(Triple("Dividend Yield", 1.0, m))
                 }
                 if (isFilled("payout", data.payout)) {
-                    totalWeight += 0.5
-                    if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável") }
+                    val m = if (data.payout in 0.2..0.9) 1.0 else if (data.payout > 1.0) -1.0 else 0.0
+                    indicatorResults.add(Triple("Payout", 0.5, m))
                 }
                 if (isFilled("netEquity", data.netEquity)) {
-                    totalWeight += 0.5
-                    if (data.netEquity >= 1_000_000_000.0) { base += 0.5; prosList.add("Blue Chip (+1Bi PL)") }
+                    val m = if (data.netEquity >= 1_000_000_000.0) 1.0 else 0.0
+                    indicatorResults.add(Triple("Blue Chip (+1Bi)", 0.5, m))
+                }
+                if (isFilled("vol", data.avgDailyVolume)) {
+                    val m = if (data.avgDailyVolume >= 1_000_000) 1.0 else if (data.avgDailyVolume < 100_000) -1.0 else 0.0
+                    indicatorResults.add(Triple("Liquidez Diária", 0.5, m))
                 }
             }
             is AssetData.Fii -> {
                 val isPapel = data.sector.lowercase().contains("papel")
-                val isTijolo = data.sector.lowercase().contains("tijolo")
-                
-                // 1. Valuation
                 if (isFilled("pvp", data.pvp)) {
-                    totalWeight += 2.0
-                    val limit = if (isPapel) 1.03 else 1.06
-                    if (data.pvp in 0.90..limit) { base += 2.0; prosList.add("Preço Justo (P/VP)") }
-                    else if (data.pvp < 0.90) { base += 1.5; prosList.add("Oportunidade (Desconto)") }
-                    else { consList.add("Ágio no P/VP") }
+                    val limit = if (isPapel) 1.03 else 1.08
+                    val m = if (data.pvp <= limit) 1.0 else if (data.pvp > limit + 0.15) -1.0 else 0.0
+                    indicatorResults.add(Triple("P/VP", 2.5, m))
                 }
-
-                // 2. Rendimentos
                 if (isFilled("y12", data.yield12m)) {
-                    totalWeight += 1.5
-                    if (data.yield12m >= 0.09) { base += 1.5; prosList.add("Rendimentos Fortes") }
+                    val m = if (data.yield12m >= 0.09) 1.0 else if (data.yield12m < 0.06) -1.0 else 0.0
+                    indicatorResults.add(Triple("Yield 12m", 2.5, m))
                 }
-
-                // 3. Operacional (Ignorado em Papel conforme solicitado)
+                if (isFilled("y5", data.avgYield5Years)) {
+                    val m = if (data.avgYield5Years >= 0.08) 1.0 else if (data.avgYield5Years < 0.05) -1.0 else 0.0
+                    indicatorResults.add(Triple("Consistência Yield", 1.0, m))
+                }
+                if (sources.containsKey("tScore") || data.tenantScore > 0) {
+                    val m = if (data.tenantScore >= 4) 1.0 else if (data.tenantScore <= 1) -1.0 else 0.0
+                    indicatorResults.add(Triple("Inquilinos", 1.5, m))
+                }
+                if (sources.containsKey("lScore") || data.leverageScore > 0) {
+                    val m = if (data.leverageScore >= 4) 1.0 else if (data.leverageScore <= 1) -1.0 else 0.0
+                    indicatorResults.add(Triple("Alavancagem", 1.5, m))
+                }
                 if (!isPapel) {
-                    if (isFilled("vac", data.vacancy)) { totalWeight += 0.5; if (data.vacancy < 0.10) { base += 0.5; prosList.add("Baixa Vacância") } else { consList.add("Vacância Elevada") } }
-                    if (isFilled("prop", data.propertyCount.toDouble())) { totalWeight += 0.5; if (data.propertyCount > 5) { base += 0.5; prosList.add("Multi-Propriedade") } else { consList.add("Fundo Mono-Propriedade") } }
-                    if (isFilled("walt", data.weightedLeaseTerm)) { totalWeight += 1.0; if (data.weightedLeaseTerm >= 4.0) { base += 1.0; prosList.add("Contratos Longos (WALT)") } }
-                    if (sources.containsKey("tScore") || data.tenantScore > 0) { totalWeight += 1.5; base += data.tenantScore * 0.3; if (data.tenantScore >= 4) prosList.add("Inquilinos High Grade") }
+                    if (isFilled("vac", data.vacancy)) { val m = if (data.vacancy < 0.10) 1.0 else if (data.vacancy > 0.25) -1.0 else 0.0; indicatorResults.add(Triple("Vacância", 0.5, m)) }
+                    if (isFilled("prop", data.propertyCount.toDouble())) { val m = if (data.propertyCount > 5) 1.0 else if (data.propertyCount == 1) -1.0 else 0.0; indicatorResults.add(Triple("Qtd Imóveis", 0.5, m)) }
+                    if (isFilled("walt", data.weightedLeaseTerm)) { val m = if (data.weightedLeaseTerm >= 4.0) 1.0 else if (data.weightedLeaseTerm < 2.0) -1.0 else 0.0; indicatorResults.add(Triple("WALT", 1.0, m)) }
                 }
-
-                // 4. Alavancagem e Gestão
-                if (isFilled("mLev", data.leverageValue) || sources.containsKey("lScore")) {
-                    totalWeight += 1.5
-                    base += data.leverageScore * 0.3
-                    if (data.leverageScore >= 4) prosList.add("Alavancagem Saudável")
-                }
-                if (sources.containsKey("mType")) { totalWeight += 0.5; if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") } }
-                if (isFilled("mFee", data.managementFee)) { totalWeight += 0.5; if (data.managementFee <= 0.01) { base += 0.5; prosList.add("Taxa de Adm Baixa") } }
-                if (isFilled("aum", data.aum)) { totalWeight += 1.0; if (data.aum >= 300_000_000) { base += 1.0; prosList.add("Porte Saudável (+300M)") } else { consList.add("Fundo de Pequeno Porte") } }
+                if (sources.containsKey("mType")) { val m = if (data.managementType.lowercase() == "ativa") 1.0 else 0.0; indicatorResults.add(Triple("Gestão Ativa", 0.5, m)) }
+                if (isFilled("mFee", data.managementFee)) { val m = if (data.managementFee <= 0.01) 1.0 else if (data.managementFee > 0.015) -1.0 else 0.0; indicatorResults.add(Triple("Taxa Adm", 0.5, m)) }
+                if (isFilled("aum", data.aum)) { val m = if (data.aum >= 300_000_000) 1.0 else if (data.aum < 100_000_000) -1.0 else 0.0; indicatorResults.add(Triple("Patrimônio (PL)", 1.0, m)) }
             }
             is AssetData.Etf -> {
-                if (isFilled("aFee", data.adminFee)) { totalWeight += 4.0; if (data.adminFee <= 0.005) { base += 4.0; prosList.add("Taxa Adm Baixa") } }
-                if (isFilled("te", data.trackingError)) { totalWeight += 3.0; if (data.trackingError <= 0.02) { base += 3.0; prosList.add("Fiel ao Índice") } }
-                if (isFilled("hold", data.numberOfHoldings.toDouble())) { totalWeight += 2.0; if (data.numberOfHoldings > 50) { base += 2.0; prosList.add("Alta Diversificação") } }
-                if (isFilled("aum", data.aum)) { totalWeight += 1.0; if (data.aum >= 100_000_000) { base += 1.0; prosList.add("Porte Saudável") } }
+                if (isFilled("aFee", data.adminFee)) { val m = if (data.adminFee <= 0.005) 1.0 else if (data.adminFee > 0.01) -1.0 else 0.0; indicatorResults.add(Triple("Taxa Adm", 6.0, m)) }
+                if (isFilled("hold", data.numberOfHoldings.toDouble())) { val m = if (data.numberOfHoldings > 50) 1.0 else if (data.numberOfHoldings < 20) -1.0 else 0.0; indicatorResults.add(Triple("Diversificação", 4.0, m)) }
             }
             is AssetData.Bdr -> {
-                totalWeight += 10.0
-                if (data.dividendYield > 0.02) { base += 5.0; prosList.add("BDR Pagador") }
-                if (data.parity == "1:1") { base += 5.0; prosList.add("Paridade Direta") }
-                else { base += 3.0 }
+                if (data is AssetData.Bdr) {
+                    if (isFilled("dy", data.dividendYield)) { val m = if (data.dividendYield > 0.02) 1.0 else -1.0; indicatorResults.add(Triple("Dividendos", 5.0, m)) }
+                    val p = if(data.parity=="1:1") 1.0 else 0.0; indicatorResults.add(Triple("Paridade", 5.0, p))
+                }
             }
         }
 
-        val rawScore = if (totalWeight > 0) (base / totalWeight) * 10.0 else 0.0
+        val totalWeight = indicatorResults.sumOf { it.second }
+        val scoreMultiplier = if (totalWeight > 0) 5.0 / totalWeight else 0.0
+
+        val prosList = mutableListOf<String>(); val consList = mutableListOf<String>(); val neutrosList = mutableListOf<String>()
+        var netImpactAccumulator = 0.0
+
+        indicatorResults.forEach { (label, weight, multiplier) ->
+            val impact = weight * multiplier * scoreMultiplier
+            netImpactAccumulator += impact
+            val formatted = "${if(impact > 0) "+" else if(impact < 0) "" else "+"}${formatBR(impact)}: $label"
+            when {
+                multiplier > 0 -> prosList.add(formatted)
+                multiplier < 0 -> consList.add(formatted)
+                else -> neutrosList.add(formatted)
+            }
+        }
+
+        val rawScore = (5.0 + netImpactAccumulator).coerceIn(0.0, 10.0)
         val final = if (data.userScoreAverage && data.userScore > 0) (rawScore + data.userScore) / 2.0 else rawScore
 
-        data.pros = prosList
-        data.cons = consList
+        data.pros = prosList; data.cons = consList; data.neutros = neutrosList
         return final.coerceIn(0.0, 10.0)
     }
 

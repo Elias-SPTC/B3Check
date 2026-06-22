@@ -706,7 +706,7 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
             ScoreIndicator("FINAL", finalScore, Color(0xFF2E7D32), true)
         }
         AssetDetails(data)
-        ProsConsSection(data.pros, data.cons)
+        ProsConsSection(data.pros, data.cons, data.neutros)
     }
 }
 
@@ -1035,16 +1035,20 @@ fun DetailsRow(l: String, v: String, c: Color = Color.Unspecified) {
 }
 
 @Composable
-fun ProsConsSection(p: List<String>, c: List<String>) {
+fun ProsConsSection(p: List<String>, c: List<String>, n: List<String>) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        if (p.isNotEmpty()) { 
-            Text("Prós", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 14.sp)
-            p.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) } 
-        }
-        if (c.isNotEmpty()) { 
-            Spacer(Modifier.height(4.dp))
-            Text("Contras", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 14.sp)
-            c.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) } 
-        }
+        Text("Prós", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32), fontSize = 14.sp)
+        if (p.isNotEmpty()) p.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
+        else Text("• Não foram encontrados pontos positivos.", fontSize = 11.sp, color = Color.Gray)
+
+        Spacer(Modifier.height(4.dp))
+        Text("Contras", fontWeight = FontWeight.Bold, color = Color.Red, fontSize = 14.sp)
+        if (c.isNotEmpty()) c.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
+        else Text("• Não foram encontrados pontos negativos.", fontSize = 11.sp, color = Color.Gray)
+
+        Spacer(Modifier.height(4.dp))
+        Text("Neutros", fontWeight = FontWeight.Bold, color = Color.Gray, fontSize = 14.sp)
+        if (n.isNotEmpty()) n.forEach { Text("• $it", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface) }
+        else Text("• Não foram encontrados pontos neutros.", fontSize = 11.sp, color = Color.Gray)
     }
 }

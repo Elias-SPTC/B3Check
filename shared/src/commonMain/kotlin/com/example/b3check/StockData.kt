@@ -16,6 +16,7 @@ sealed class AssetData {
     abstract val userScoreAverage: Boolean
     var pros: List<String> = emptyList()
     var cons: List<String> = emptyList()
+    var neutros: List<String> = emptyList()
     var mockedFields: Set<String> = emptySet()
     var fieldSources: Map<String, FieldSource>? = emptyMap()
     var lastUpdated: Long = 0L
