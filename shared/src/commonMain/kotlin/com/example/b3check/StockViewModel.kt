@@ -201,6 +201,9 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         val consList = mutableListOf<String>()
         val sources = data.fieldSources ?: emptyMap()
 
+        // Helper para decidir se um campo deve ser contado (origem presente OU valor não-zero para dados legados)
+        fun isFilled(key: String, value: Double): Boolean = sources.containsKey(key) || value != 0.0
+
         when (data) {
             is AssetData.Stock -> {
                 val sec = data.sector.trim().lowercase()
@@ -211,112 +214,110 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                 val isFinancial = isBank || isInsurance || isHolding
                 val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica") || sub.contains("saneamento")
 
-                // 1. Rentabilidade (ROE)
-                if (sources.containsKey("roe")) {
+                if (isFilled("roe", data.roe)) {
                     totalWeight += 2.5
                     val roeMeta = if (isFinancial) 0.15 else if (isUtility || data.ticker.startsWith("VALE")) 0.10 else 0.14
                     if (data.roe >= roeMeta) { base += 2.5; prosList.add("ROE Superior: ${formatBR(data.roe*100)}%") }
                     else { consList.add("ROE abaixo da meta ideal para o setor") }
                 }
 
-                // 2. Solvência
                 if (isBank) {
-                    if (sources.containsKey("basel")) {
+                    if (isFilled("basel", data.baselIndex)) {
                         totalWeight += 2.0
                         if (data.baselIndex >= 0.14) { base += 2.0; prosList.add("Basileia Sólida: ${formatBR(data.baselIndex*100)}%") }
                         else { base += 0.5; consList.add("Alerta de Basileia: ${formatBR(data.baselIndex*100)}%") }
                     }
                 } else if (!isInsurance && !isHolding) {
                     val debtLimit = if (isUtility) 4.5 else 3.0
-                    if (sources.containsKey("deEbitda")) {
+                    if (isFilled("deEbitda", data.debtToEbitda)) {
                         totalWeight += 1.0
                         if (data.debtToEbitda < debtLimit) { base += 1.0; prosList.add("Dív/EBITDA Saudável") }
                         else { consList.add("Dívida/EBITDA Elevada (${formatBR(data.debtToEbitda)}x)") }
                     }
-                    if (sources.containsKey("de")) {
+                    if (isFilled("de", data.debtToEquity)) {
                         totalWeight += 1.0
                         if (data.debtToEquity < 1.0) { base += 1.0; prosList.add("Dív/Patrimônio Sob Controle") }
                         else { consList.add("Dív/Patrimônio Elevada (${formatBR(data.debtToEquity)})") }
                     }
+                } else {
+                    base += 2.0; totalWeight += 2.0
+                    prosList.add("Modelo de Negócio de Capital Intenso")
                 }
 
-                // 3. Eficiência e Crescimento
-                if (sources.containsKey("ml") || isBank) {
+                if (isBank || isFilled("ml", data.netMargin)) {
                     totalWeight += 1.0
                     if (data.netMargin > 0.10 || isBank) { base += 1.0; prosList.add("Boa Eficiência Operacional") }
                     else { consList.add("Margem Líquida Estreita") }
                 }
-                if (sources.containsKey("cLuc")) {
+                if (isFilled("cLuc", data.cagrProfit5Years)) {
                     totalWeight += 1.0
                     if (data.cagrProfit5Years >= 0.08) { base += 1.0; prosList.add("Crescimento de Lucro (5a)") }
                     else if (data.cagrProfit5Years < 0) { consList.add("Histórico: Lucros em Queda") }
                 }
-                if (!isBank && sources.containsKey("cRec")) {
+                if (!isBank && isFilled("cRec", data.cagrRevenue5Years)) {
                     totalWeight += 0.5
                     if (data.cagrRevenue5Years >= 0.08) { base += 0.5; prosList.add("Crescimento de Receita Sólido") }
                 }
 
-                // 4. Valuation
-                if (sources.containsKey("pvp")) {
+                if (isFilled("pvp", data.pvp)) {
                     totalWeight += 1.0
                     val pvpLimit = if (isBank) 1.8 else 2.0
                     if (data.pvp in 0.1..pvpLimit) { base += 1.0; prosList.add("Preço/VP Atrativo") }
                     else { consList.add("Valuation Esticado (P/VP): ${formatBR(data.pvp)}") }
                 }
-                if (sources.containsKey("pl")) {
+                if (isFilled("pl", data.pl)) {
                     totalWeight += 1.0
                     if (data.pl in 1.0..20.0) { base += 1.0; prosList.add("Múltiplo P/L Saudável") }
                     else { base += 0.5; consList.add("Múltiplo P/L Fora da Faixa Ideal: ${formatBR(data.pl)}x") }
                 }
 
-                // 5. Dividendos e Payout
-                if (sources.containsKey("dy")) {
+                if (isFilled("dy", data.dividendYield)) {
                     totalWeight += 0.5
                     if (data.dividendYield >= 0.05) { base += 0.5; prosList.add("DY Atual Forte") }
                 }
-                if (sources.containsKey("dy5")) {
+                if (isFilled("dy5", data.dividendYield5Years)) {
                     totalWeight += 0.5
                     if (data.dividendYield5Years >= 0.05) { base += 0.5; prosList.add("Excelente Histórico de Proventos") }
                 }
-                if (sources.containsKey("payout")) {
+                if (isFilled("payout", data.payout)) {
                     totalWeight += 0.5
                     if (data.payout in 0.2..0.9) { base += 0.5; prosList.add("Payout Sustentável") }
                 }
-                if (sources.containsKey("netEquity")) {
+                if (isFilled("netEquity", data.netEquity)) {
                     totalWeight += 0.5
                     if (data.netEquity >= 1_000_000_000.0) { base += 0.5; prosList.add("Empresa de Grande Porte") }
                 }
             }
             is AssetData.Fii -> {
-                if (sources.containsKey("pvp")) {
+                if (isFilled("pvp", data.pvp)) {
                     totalWeight += 2.0
                     if (data.pvp in 0.92..1.06) { base += 2.0; prosList.add("Preço Justo (P/VP)") }
                     else if (data.pvp < 0.92) { base += 1.5; prosList.add("Oportunidade (Desconto)") }
                     else { consList.add("Ágio Elevado: P/VP ${formatBR(data.pvp)}") }
                 }
-                if (sources.containsKey("y12")) {
+                if (isFilled("y12", data.yield12m)) {
                     totalWeight += 1.5
                     if (data.yield12m >= 0.09) { base += 1.5; prosList.add("Rendimentos Fortes") }
                 }
-                if (sources.containsKey("y5")) {
+                if (isFilled("y5", data.avgYield5Years)) {
                     totalWeight += 1.0
                     if (data.avgYield5Years >= 0.08) { base += 1.0; prosList.add("Consistência de Yield (5a)") }
                 }
-                if (sources.containsKey("tScore")) {
+                if (sources.containsKey("tScore") || data.tenantScore > 0) {
                     totalWeight += 1.5
                     base += data.tenantScore * 0.3
                     if (data.tenantScore >= 4) prosList.add("Inquilinos de Qualidade")
                 }
-                if (sources.containsKey("lScore")) {
+                if (sources.containsKey("lScore") || data.leverageScore > 0) {
                     totalWeight += 1.5
                     base += data.leverageScore * 0.3
                     if (data.leverageScore >= 4) prosList.add("Alavancagem Sob Controle")
                 }
-                if (sources.containsKey("vac")) {
+                if (isFilled("vac", data.vacancy)) {
                     totalWeight += 0.5
                     if (data.vacancy < 0.10) { base += 0.5; prosList.add("Baixa Vacância") }
                 }
-                if (sources.containsKey("prop")) {
+                if (isFilled("prop", data.propertyCount.toDouble())) {
                     totalWeight += 0.5
                     if (data.propertyCount > 5) { base += 0.5; prosList.add("Multi-Propriedade") }
                 }
@@ -324,25 +325,25 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                     totalWeight += 0.5
                     if (data.managementType.lowercase() == "ativa") { base += 0.5; prosList.add("Gestão Ativa") }
                 }
-                if (sources.containsKey("mFee")) {
+                if (isFilled("mFee", data.managementFee)) {
                     totalWeight += 0.5
                     if (data.managementFee <= 0.01 && data.managementFee > 0) { base += 0.5; prosList.add("Taxa de Adm Baixa") }
                 }
             }
             is AssetData.Etf -> {
-                if (sources.containsKey("aFee")) {
+                if (isFilled("aFee", data.adminFee)) {
                     totalWeight += 4.0
                     if (data.adminFee <= 0.005) { base += 4.0; prosList.add("Taxa Adm Baixa") }
                 }
-                if (sources.containsKey("te")) {
+                if (isFilled("te", data.trackingError)) {
                     totalWeight += 3.0
                     if (data.trackingError <= 0.02) { base += 3.0; prosList.add("Baixo Tracking Error") }
                 }
-                if (sources.containsKey("hold")) {
+                if (isFilled("hold", data.numberOfHoldings.toDouble())) {
                     totalWeight += 2.0
                     if (data.numberOfHoldings > 50) { base += 2.0; prosList.add("Alta Diversificação") }
                 }
-                if (sources.containsKey("aum")) {
+                if (isFilled("aum", data.aum)) {
                     totalWeight += 1.0
                     if (data.aum >= 100_000_000) { base += 1.0; prosList.add("Porte Saudável") }
                 }
