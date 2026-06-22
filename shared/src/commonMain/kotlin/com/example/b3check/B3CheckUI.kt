@@ -741,9 +741,22 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         indicatorStates["uScore"] = formatBR(data.userScore, true)
         
         val fields = if (data is AssetData.Stock) {
-            listOf("lpa", "vpa", "roe", "dy", "dy5", "de", "deEbitda", "ml", "pl", "pvp", "payout", "basel", "graham", "bazin", "cLuc", "cRec", "vol", "netEquity")
+            val sub = subSectorState.lowercase()
+            val isBank = sub.contains("banco")
+            val isInsurance = sub.contains("seguradora")
+            val isHolding = sub.contains("holding")
+            
+            mutableListOf("lpa", "vpa", "roe", "dy", "dy5", "ml", "pl", "pvp", "payout", "vol", "netEquity").apply {
+                if (!isBank && !isInsurance && !isHolding) { add("de"); add("deEbitda"); add("cRec") }
+                if (!isBank) { add("cLuc") }
+                if (isBank) { add("basel") }
+                add("graham"); add("bazin")
+            }
         } else if (data is AssetData.Fii) {
-            listOf("pvp", "vac", "y12", "y5", "vol", "prop", "aum", "mFee", "walt", "mLev", "mType", "tScore", "lScore")
+            val isPapel = sectorState.lowercase().contains("papel")
+            mutableListOf("pvp", "y12", "y5", "vol", "aum", "mFee", "mLev", "mType", "lScore").apply {
+                if (!isPapel) { add("vac"); add("prop"); add("walt"); add("tScore") }
+            }
         } else if (data is AssetData.Etf) {
             listOf("aFee", "te", "vol", "hold", "aum")
         } else if (data is AssetData.Bdr) {
@@ -796,17 +809,51 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (data is AssetData.Stock) {
-            EditRow("LPA", indicatorStates["lpa"] ?: "", true, sourceStates["lpa"]) { indicatorStates["lpa"] = it; sourceStates["lpa"] = FieldSource.USER }; EditRow("VPA", indicatorStates["vpa"] ?: "", true, sourceStates["vpa"]) { indicatorStates["vpa"] = it; sourceStates["vpa"] = FieldSource.USER }; EditRow("P/L", indicatorStates["pl"] ?: "", true, sourceStates["pl"]) { indicatorStates["pl"] = it; sourceStates["pl"] = FieldSource.USER }; EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }; EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, sourceStates["roe"]) { indicatorStates["roe"] = it; sourceStates["roe"] = FieldSource.USER }; EditRow("Margem (%)", indicatorStates["ml"] ?: "", true, sourceStates["ml"]) { indicatorStates["ml"] = it; sourceStates["ml"] = FieldSource.USER }
-            EditRow("Dív/Patrimônio", indicatorStates["de"] ?: "", true, sourceStates["de"]) { indicatorStates["de"] = it; sourceStates["de"] = FieldSource.USER }; EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, sourceStates["deEbitda"]) { indicatorStates["deEbitda"] = it; sourceStates["deEbitda"] = FieldSource.USER }
-            EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true, sourceStates["cLuc"]) { indicatorStates["cLuc"] = it; sourceStates["cLuc"] = FieldSource.USER }; EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true, sourceStates["cRec"]) { indicatorStates["cRec"] = it; sourceStates["cRec"] = FieldSource.USER }; EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, sourceStates["payout"]) { indicatorStates["payout"] = it; sourceStates["payout"] = FieldSource.USER }
-            if (subSectorState.contains("Bancos")) EditRow("Basileia (%)", indicatorStates["basel"] ?: "", true, sourceStates["basel"]) { indicatorStates["basel"] = it; sourceStates["basel"] = FieldSource.USER }
-            EditRow("DY 12m (%)", indicatorStates["dy"] ?: "", true, sourceStates["dy"]) { indicatorStates["dy"] = it; sourceStates["dy"] = FieldSource.USER }; EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, sourceStates["dy5"]) { indicatorStates["dy5"] = it; sourceStates["dy5"] = FieldSource.USER }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Graham", indicatorStates["graham"] ?: "", true, sourceStates["graham"]) { indicatorStates["graham"] = it; sourceStates["graham"] = FieldSource.USER }; EditRow("Bazin", indicatorStates["bazin"] ?: "", true, sourceStates["bazin"]) { indicatorStates["bazin"] = it; sourceStates["bazin"] = FieldSource.USER }
+            val isBank = subSectorState.lowercase().contains("banco")
+            val isInsurance = subSectorState.lowercase().contains("seguradora")
+            val isHolding = subSectorState.lowercase().contains("holding")
+
+            EditRow("LPA", indicatorStates["lpa"] ?: "", true, sourceStates["lpa"]) { indicatorStates["lpa"] = it; sourceStates["lpa"] = FieldSource.USER }
+            EditRow("VPA", indicatorStates["vpa"] ?: "", true, sourceStates["vpa"]) { indicatorStates["vpa"] = it; sourceStates["vpa"] = FieldSource.USER }
+            EditRow("P/L", indicatorStates["pl"] ?: "", true, sourceStates["pl"]) { indicatorStates["pl"] = it; sourceStates["pl"] = FieldSource.USER }
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }
+            EditRow("ROE (%)", indicatorStates["roe"] ?: "", true, sourceStates["roe"]) { indicatorStates["roe"] = it; sourceStates["roe"] = FieldSource.USER }
+            EditRow("Margem (%)", indicatorStates["ml"] ?: "", true, sourceStates["ml"]) { indicatorStates["ml"] = it; sourceStates["ml"] = FieldSource.USER }
+            
+            if (!isBank && !isInsurance && !isHolding) {
+                EditRow("Dív/Patrimônio", indicatorStates["de"] ?: "", true, sourceStates["de"]) { indicatorStates["de"] = it; sourceStates["de"] = FieldSource.USER }
+                EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, sourceStates["deEbitda"]) { indicatorStates["deEbitda"] = it; sourceStates["deEbitda"] = FieldSource.USER }
+                EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true, sourceStates["cRec"]) { indicatorStates["cRec"] = it; sourceStates["cRec"] = FieldSource.USER }
+            }
+            if (!isBank) {
+                EditRow("CAGR Lucro (%)", indicatorStates["cLuc"] ?: "", true, sourceStates["cLuc"]) { indicatorStates["cLuc"] = it; sourceStates["cLuc"] = FieldSource.USER }
+            }
+            EditRow("Payout (%)", indicatorStates["payout"] ?: "", true, sourceStates["payout"]) { indicatorStates["payout"] = it; sourceStates["payout"] = FieldSource.USER }
+            if (isBank) {
+                EditRow("Basileia (%)", indicatorStates["basel"] ?: "", true, sourceStates["basel"]) { indicatorStates["basel"] = it; sourceStates["basel"] = FieldSource.USER }
+            }
+            EditRow("DY 12m (%)", indicatorStates["dy"] ?: "", true, sourceStates["dy"]) { indicatorStates["dy"] = it; sourceStates["dy"] = FieldSource.USER }
+            EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, sourceStates["dy5"]) { indicatorStates["dy5"] = it; sourceStates["dy5"] = FieldSource.USER }
+            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
+            EditRow("Graham", indicatorStates["graham"] ?: "", true, sourceStates["graham"]) { indicatorStates["graham"] = it; sourceStates["graham"] = FieldSource.USER }
+            EditRow("Bazin", indicatorStates["bazin"] ?: "", true, sourceStates["bazin"]) { indicatorStates["bazin"] = it; sourceStates["bazin"] = FieldSource.USER }
             EditRow("Patrimônio (M)", indicatorStates["netEquity"] ?: "", true, sourceStates["netEquity"]) { indicatorStates["netEquity"] = it; sourceStates["netEquity"] = FieldSource.USER }
         } else if (data is AssetData.Fii) {
-            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }; EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, sourceStates["y12"]) { indicatorStates["y12"] = it; sourceStates["y12"] = FieldSource.USER }; EditRow("DY Médio 5a (%)", indicatorStates["y5"] ?: "", true, sourceStates["y5"]) { indicatorStates["y5"] = it; sourceStates["y5"] = FieldSource.USER }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, sourceStates["vac"]) { indicatorStates["vac"] = it; sourceStates["vac"] = FieldSource.USER }; EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, sourceStates["walt"]) { indicatorStates["walt"] = it; sourceStates["walt"] = FieldSource.USER }; EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true, sourceStates["mLev"]) { indicatorStates["mLev"] = it; sourceStates["mLev"] = FieldSource.USER }; EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, sourceStates["prop"]) { indicatorStates["prop"] = it; sourceStates["prop"] = FieldSource.USER }
-            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, sourceStates["mFee"]) { indicatorStates["mFee"] = it; sourceStates["mFee"] = FieldSource.USER }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }
+            val isPapel = sectorState.lowercase().contains("papel")
+            EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }
+            EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, sourceStates["y12"]) { indicatorStates["y12"] = it; sourceStates["y12"] = FieldSource.USER }
+            EditRow("DY Médio 5a (%)", indicatorStates["y5"] ?: "", true, sourceStates["y5"]) { indicatorStates["y5"] = it; sourceStates["y5"] = FieldSource.USER }
+            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
+            
+            if (!isPapel) {
+                EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, sourceStates["vac"]) { indicatorStates["vac"] = it; sourceStates["vac"] = FieldSource.USER }
+                EditRow("WALT (anos)", indicatorStates["walt"] ?: "", true, sourceStates["walt"]) { indicatorStates["walt"] = it; sourceStates["walt"] = FieldSource.USER }
+                EditRow("Qtd Imóveis", indicatorStates["prop"] ?: "", true, sourceStates["prop"]) { indicatorStates["prop"] = it; sourceStates["prop"] = FieldSource.USER }
+            }
+            
+            EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true, sourceStates["mLev"]) { indicatorStates["mLev"] = it; sourceStates["mLev"] = FieldSource.USER }
+            EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, sourceStates["mFee"]) { indicatorStates["mFee"] = it; sourceStates["mFee"] = FieldSource.USER }
+            EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }
             
             var showManagementMenu by remember { mutableStateOf(false) }
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -823,15 +870,18 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 }
             }
 
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Text("Nota Inquilino", fontSize = 12.sp); Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "tenant" }, tint = Color.Gray) }
-                Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) { val cur = (indicatorStates["tScore"] ?: "0").toInt(); (0..5).forEach { s -> TextButton(onClick = { indicatorStates["tScore"] = s.toString(); sourceStates["tScore"] = FieldSource.USER }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) { Text(text = s.toString(), fontWeight = if (cur == s) FontWeight.Bold else FontWeight.Normal, color = if (cur == s) Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface) } } }
+            if (!isPapel) {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Text("Nota Inquilino", fontSize = 12.sp); Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "tenant" }, tint = Color.Gray) }
+                    Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) { val cur = (indicatorStates["tScore"] ?: "0").toInt(); (0..5).forEach { s -> TextButton(onClick = { indicatorStates["tScore"] = s.toString(); sourceStates["tScore"] = FieldSource.USER }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) { Text(text = s.toString(), fontWeight = if (cur == s) FontWeight.Bold else FontWeight.Normal, color = if (cur == s) Color(0xFF1976D2) else MaterialTheme.colorScheme.onSurface) } } }
+                }
             }
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Text("Nota Alavancagem", fontSize = 12.sp); Icon(Icons.Default.Help, null, modifier = Modifier.size(16.dp).padding(start = 4.dp).clickable { helpDialogType = "leverage" }, tint = Color.Gray) }
                 Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) { val cur = (indicatorStates["lScore"] ?: "0").toInt(); (0..5).forEach { s -> TextButton(onClick = { indicatorStates["lScore"] = s.toString(); sourceStates["lScore"] = FieldSource.USER }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) { Text(text = s.toString(), fontWeight = if (cur == s) FontWeight.Bold else FontWeight.Normal, color = if (cur == s) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface) } } }
             }
-        } else if (data is AssetData.Etf) {
+        }
+else if (data is AssetData.Etf) {
             EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, sourceStates["aFee"]) { indicatorStates["aFee"] = it; sourceStates["aFee"] = FieldSource.USER }; EditRow("Tracking Error (%)", indicatorStates["te"] ?: "", true, sourceStates["te"]) { indicatorStates["te"] = it; sourceStates["te"] = FieldSource.USER }
             EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }; EditRow("Holdings", indicatorStates["hold"] ?: "", true, sourceStates["hold"]) { indicatorStates["hold"] = it; sourceStates["hold"] = FieldSource.USER }
         } else if (data is AssetData.Bdr) {
@@ -879,11 +929,11 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 vacancy = parseBR(indicatorStates["vac"] ?: "0")/100, 
                 yield12m = parseBR(indicatorStates["y12"] ?: "0")/100, 
                 avgYield5Years = parseBR(indicatorStates["y5"] ?: "0")/100, 
-                propertyCount = (indicatorStates["prop"] ?: "0").toInt(), 
+                propertyCount = (indicatorStates["prop"] ?: "0").ifBlank { "0" }.toInt(), 
                 weightedLeaseTerm = parseBR(indicatorStates["walt"] ?: "0"), 
                 leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100, 
-                tenantScore = (indicatorStates["tScore"] ?: "0").toInt(), 
-                leverageScore = (indicatorStates["lScore"] ?: "0").toInt(), 
+                tenantScore = (indicatorStates["tScore"] ?: "0").ifBlank { "0" }.toInt(), 
+                leverageScore = (indicatorStates["lScore"] ?: "0").ifBlank { "0" }.toInt(), 
                 avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0", 1_000_000.0)*1_000_000, 
                 aum = parseBR(indicatorStates["aum"] ?: "0", 1_000_000.0)*1_000_000
             )
@@ -898,7 +948,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 trackingError = parseBR(indicatorStates["te"] ?: "0")/100, 
                 avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0", 1_000_000.0)*1_000_000, 
                 aum = parseBR(indicatorStates["aum"] ?: "0", 1_000_000.0)*1_000_000, 
-                numberOfHoldings = (indicatorStates["hold"] ?: "0").toInt()
+                numberOfHoldings = (indicatorStates["hold"] ?: "0").ifBlank { "0" }.toInt()
             )
             is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
             else -> data }; updated.fieldSources = sourceStates.filterValues { it != null }.mapValues { it.value!! }; onSave(updated) }, modifier = Modifier.weight(1f)) { Text("Salvar") }
