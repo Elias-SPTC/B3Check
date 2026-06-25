@@ -9,6 +9,25 @@ fun formatBR(v: Double, emptyIfZero: Boolean = false): String {
 }
 
 /**
+ * Formata números grandes de forma legível (M, B, T) ou mantém precisão se houver quebrados.
+ */
+fun formatSmart(v: Double, emptyIfZero: Boolean = false): String {
+    if (emptyIfZero && v == 0.0) return ""
+    val absV = kotlin.math.abs(v)
+    // Se o número tem precisão "quebrada" significativa, mantém o formato original
+    val isRound = (absV % 1000.0 == 0.0) || absV < 1000.0
+    
+    return when {
+        !isRound -> formatBR(v)
+        absV >= 1_000_000_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f T", v / 1_000_000_000_000.0)
+        absV >= 1_000_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f B", v / 1_000_000_000.0)
+        absV >= 1_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f M", v / 1_000_000.0)
+        absV >= 1_000.0 -> String.format(Locale("pt", "BR"), "%.2f K", v / 1_000.0)
+        else -> formatBR(v)
+    }
+}
+
+/**
  * Converte string formatada (ex: 1.234,56 ou 10M) para Double.
  * @param unitScale Multiplicador da unidade exibida na UI (ex: 1_000_000 para campos "(M)")
  */
@@ -28,9 +47,7 @@ fun parseBR(v: String, unitScale: Double = 1.0): Double {
     
     return try {
         val num = numericPart.replace(".", "").replace(",", ".").toDoubleOrNull() ?: 0.0
-        val absoluteValue = num * multiplier
-        // Se o usuário usou um sufixo (M, B, T), normalizamos para a escala da UI
-        if (multiplier > 1.0) absoluteValue / unitScale else num
+        num * multiplier
     } catch (e: Exception) { 0.0 }
 }
 

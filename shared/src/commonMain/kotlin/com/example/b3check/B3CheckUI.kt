@@ -706,7 +706,6 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
             ScoreIndicator("FINAL", finalScore, Color(0xFF2E7D32), true)
         }
         AssetDetails(data)
-        ProsConsSection(data.pros, data.cons, data.neutros)
     }
 }
 
@@ -767,12 +766,13 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
         indicatorStates["cotas"] = formatBR(data.sharesCount, true)
 
         if (data is AssetData.Stock) {
-            indicatorStates["lpa"] = formatBR(data.lpa, true); indicatorStates["vpa"] = formatBR(data.vpa, true); indicatorStates["roe"] = formatBR(data.roe * 100, true); indicatorStates["dy"] = formatBR(data.dividendYield * 100, true); indicatorStates["dy5"] = formatBR(data.dividendYield5Years * 100, true); indicatorStates["de"] = formatBR(data.debtToEquity, true); indicatorStates["deEbitda"] = formatBR(data.debtToEbitda, true); indicatorStates["ml"] = formatBR(data.netMargin * 100, true); indicatorStates["pl"] = formatBR(data.pl, true); indicatorStates["pvp"] = formatBR(data.pvp, true); indicatorStates["payout"] = formatBR(data.payout * 100, true); indicatorStates["basel"] = formatBR(data.baselIndex * 100, true); indicatorStates["graham"] = formatBR(data.grahamPrice, true); indicatorStates["bazin"] = formatBR(data.bazinPrice, true); indicatorStates["cLuc"] = formatBR(data.cagrProfit5Years * 100, true); indicatorStates["cRec"] = formatBR(data.cagrRevenue5Years * 100, true); indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0, true); indicatorStates["netEquity"] = formatBR(data.netEquity / 1_000_000.0, true)
+            indicatorStates["lpa"] = formatSmart(data.lpa, true); indicatorStates["vpa"] = formatSmart(data.vpa, true); indicatorStates["roe"] = formatBR(data.roe * 100, true); indicatorStates["dy"] = formatBR(data.dividendYield * 100, true); indicatorStates["dy5"] = formatBR(data.dividendYield5Years * 100, true); indicatorStates["de"] = formatSmart(data.debtToEquity, true); indicatorStates["deEbitda"] = formatSmart(data.debtToEbitda, true); indicatorStates["ml"] = formatBR(data.netMargin * 100, true); indicatorStates["pl"] = formatSmart(data.pl, true); indicatorStates["pvp"] = formatSmart(data.pvp, true); indicatorStates["payout"] = formatBR(data.payout * 100, true); indicatorStates["basel"] = formatBR(data.baselIndex * 100, true); indicatorStates["graham"] = formatSmart(data.grahamPrice, true); indicatorStates["bazin"] = formatSmart(data.bazinPrice, true); indicatorStates["cLuc"] = formatBR(data.cagrProfit5Years * 100, true); indicatorStates["cRec"] = formatBR(data.cagrRevenue5Years * 100, true); indicatorStates["vol"] = formatSmart(data.avgDailyVolume, true); indicatorStates["netEquity"] = formatSmart(data.netEquity, true)
         } else if (data is AssetData.Fii) {
-            indicatorStates["pvp"] = formatBR(data.pvp, true); indicatorStates["vac"] = formatBR(data.vacancy * 100, true); indicatorStates["y12"] = formatBR(data.yield12m * 100, true); indicatorStates["y5"] = formatBR(data.avgYield5Years * 100, true); indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0, true); indicatorStates["prop"] = if(data.propertyCount == 0) "" else data.propertyCount.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0, true); indicatorStates["mFee"] = formatBR(data.managementFee * 100, true); indicatorStates["walt"] = formatBR(data.weightedLeaseTerm, true); indicatorStates["mLev"] = formatBR(data.leverageValue * 100, true); indicatorStates["mType"] = data.managementType; indicatorStates["tScore"] = if(data.tenantScore == 0) "" else data.tenantScore.toString(); indicatorStates["lScore"] = if(data.leverageScore == 0) "" else data.leverageScore.toString()
+            indicatorStates["pvp"] = formatSmart(data.pvp, true); indicatorStates["vac"] = formatBR(data.vacancy * 100, true); indicatorStates["y12"] = formatBR(data.yield12m * 100, true); indicatorStates["y5"] = formatBR(data.avgYield5Years * 100, true); indicatorStates["vol"] = formatSmart(data.avgDailyVolume, true); indicatorStates["prop"] = if(data.propertyCount == 0) "" else data.propertyCount.toString(); indicatorStates["aum"] = formatSmart(data.aum, true); indicatorStates["mFee"] = formatBR(data.managementFee * 100, true); indicatorStates["walt"] = formatSmart(data.weightedLeaseTerm, true); indicatorStates["mLev"] = formatBR(data.leverageValue * 100, true); indicatorStates["mType"] = data.managementType; indicatorStates["tScore"] = if(data.tenantScore == 0) "" else data.tenantScore.toString(); indicatorStates["lScore"] = if(data.leverageScore == 0) "" else data.leverageScore.toString()
         } else if (data is AssetData.Etf) {
-            indicatorStates["aFee"] = formatBR(data.adminFee * 100, true); indicatorStates["te"] = formatBR(data.trackingError * 100, true); indicatorStates["vol"] = formatBR(data.avgDailyVolume / 1_000_000.0, true); indicatorStates["hold"] = if(data.numberOfHoldings == 0) "" else data.numberOfHoldings.toString(); indicatorStates["aum"] = formatBR(data.aum / 1_000_000.0, true)
-        } else if (data is AssetData.Bdr) {
+            indicatorStates["aFee"] = formatBR(data.adminFee * 100, true); indicatorStates["te"] = formatBR(data.trackingError * 100, true); indicatorStates["vol"] = formatSmart(data.avgDailyVolume, true); indicatorStates["hold"] = if(data.numberOfHoldings == 0) "" else data.numberOfHoldings.toString(); indicatorStates["aum"] = formatSmart(data.aum, true)
+        }
+else if (data is AssetData.Bdr) {
             indicatorStates["dy"] = formatBR(data.dividendYield * 100, true); indicatorStates["par"] = data.parity
         }
     }
@@ -821,8 +821,8 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             EditRow("Margem (%)", indicatorStates["ml"] ?: "", true, sourceStates["ml"]) { indicatorStates["ml"] = it; sourceStates["ml"] = FieldSource.USER }
             
             if (!isBank && !isInsurance && !isHolding) {
-                EditRow("Dív/Patrimônio", indicatorStates["de"] ?: "", true, sourceStates["de"]) { indicatorStates["de"] = it; sourceStates["de"] = FieldSource.USER }
-                EditRow("Dív/EBITDA", indicatorStates["deEbitda"] ?: "", true, sourceStates["deEbitda"]) { indicatorStates["deEbitda"] = it; sourceStates["deEbitda"] = FieldSource.USER }
+                EditRow("Dívida/Patrimônio", indicatorStates["de"] ?: "", true, sourceStates["de"]) { indicatorStates["de"] = it; sourceStates["de"] = FieldSource.USER }
+                EditRow("Dívida/EBITDA", indicatorStates["deEbitda"] ?: "", true, sourceStates["deEbitda"]) { indicatorStates["deEbitda"] = it; sourceStates["deEbitda"] = FieldSource.USER }
                 EditRow("CAGR Rec. (%)", indicatorStates["cRec"] ?: "", true, sourceStates["cRec"]) { indicatorStates["cRec"] = it; sourceStates["cRec"] = FieldSource.USER }
             }
             if (!isBank) {
@@ -834,16 +834,16 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             }
             EditRow("DY 12m (%)", indicatorStates["dy"] ?: "", true, sourceStates["dy"]) { indicatorStates["dy"] = it; sourceStates["dy"] = FieldSource.USER }
             EditRow("DY 5a (%)", indicatorStates["dy5"] ?: "", true, sourceStates["dy5"]) { indicatorStates["dy5"] = it; sourceStates["dy5"] = FieldSource.USER }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
+            EditRow("Vol. Diário", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
             EditRow("Graham", indicatorStates["graham"] ?: "", true, sourceStates["graham"]) { indicatorStates["graham"] = it; sourceStates["graham"] = FieldSource.USER }
             EditRow("Bazin", indicatorStates["bazin"] ?: "", true, sourceStates["bazin"]) { indicatorStates["bazin"] = it; sourceStates["bazin"] = FieldSource.USER }
-            EditRow("Patrimônio (M)", indicatorStates["netEquity"] ?: "", true, sourceStates["netEquity"]) { indicatorStates["netEquity"] = it; sourceStates["netEquity"] = FieldSource.USER }
+            EditRow("Patrimônio", indicatorStates["netEquity"] ?: "", true, sourceStates["netEquity"]) { indicatorStates["netEquity"] = it; sourceStates["netEquity"] = FieldSource.USER }
         } else if (data is AssetData.Fii) {
             val isPapel = sectorState.lowercase().contains("papel")
             EditRow("P/VP", indicatorStates["pvp"] ?: "", true, sourceStates["pvp"]) { indicatorStates["pvp"] = it; sourceStates["pvp"] = FieldSource.USER }
             EditRow("DY 12m (%)", indicatorStates["y12"] ?: "", true, sourceStates["y12"]) { indicatorStates["y12"] = it; sourceStates["y12"] = FieldSource.USER }
             EditRow("DY Médio 5a (%)", indicatorStates["y5"] ?: "", true, sourceStates["y5"]) { indicatorStates["y5"] = it; sourceStates["y5"] = FieldSource.USER }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
+            EditRow("Vol. Diário", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }
             
             if (!isPapel) {
                 EditRow("Vacância (%)", indicatorStates["vac"] ?: "", true, sourceStates["vac"]) { indicatorStates["vac"] = it; sourceStates["vac"] = FieldSource.USER }
@@ -853,7 +853,7 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
             
             EditRow("Alavancagem (%)", indicatorStates["mLev"] ?: "", true, sourceStates["mLev"]) { indicatorStates["mLev"] = it; sourceStates["mLev"] = FieldSource.USER }
             EditRow("Taxa Adm (%)", indicatorStates["mFee"] ?: "", true, sourceStates["mFee"]) { indicatorStates["mFee"] = it; sourceStates["mFee"] = FieldSource.USER }
-            EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }
+            EditRow("Patrimônio", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }
             
             var showManagementMenu by remember { mutableStateOf(false) }
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -881,9 +881,9 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 Row(modifier = Modifier.weight(1.8f), horizontalArrangement = Arrangement.SpaceEvenly) { val cur = (indicatorStates["lScore"] ?: "0").toInt(); (0..5).forEach { s -> TextButton(onClick = { indicatorStates["lScore"] = s.toString(); sourceStates["lScore"] = FieldSource.USER }, modifier = Modifier.size(32.dp), contentPadding = PaddingValues(0.dp)) { Text(text = s.toString(), fontWeight = if (cur == s) FontWeight.Bold else FontWeight.Normal, color = if (cur == s) Color(0xFFD32F2F) else MaterialTheme.colorScheme.onSurface) } } }
             }
         }
-else if (data is AssetData.Etf) {
+        else if (data is AssetData.Etf) {
             EditRow("Taxa Adm (%)", indicatorStates["aFee"] ?: "", true, sourceStates["aFee"]) { indicatorStates["aFee"] = it; sourceStates["aFee"] = FieldSource.USER }; EditRow("Tracking Error (%)", indicatorStates["te"] ?: "", true, sourceStates["te"]) { indicatorStates["te"] = it; sourceStates["te"] = FieldSource.USER }
-            EditRow("Vol. Diário (M)", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Patrimônio (M)", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }; EditRow("Holdings", indicatorStates["hold"] ?: "", true, sourceStates["hold"]) { indicatorStates["hold"] = it; sourceStates["hold"] = FieldSource.USER }
+            EditRow("Vol. Diário", indicatorStates["vol"] ?: "", true, sourceStates["vol"]) { indicatorStates["vol"] = it; sourceStates["vol"] = FieldSource.USER }; EditRow("Patrimônio", indicatorStates["aum"] ?: "", true, sourceStates["aum"]) { indicatorStates["aum"] = it; sourceStates["aum"] = FieldSource.USER }; EditRow("Holdings", indicatorStates["hold"] ?: "", true, sourceStates["hold"]) { indicatorStates["hold"] = it; sourceStates["hold"] = FieldSource.USER }
         } else if (data is AssetData.Bdr) {
             EditRow("DY Atual (%)", indicatorStates["dy"] ?: "", true, sourceStates["dy"]) { indicatorStates["dy"] = it; sourceStates["dy"] = FieldSource.USER }; EditRow("Paridade", indicatorStates["par"] ?: "", false, sourceStates["par"]) { indicatorStates["par"] = it; sourceStates["par"] = FieldSource.USER }
         }
@@ -913,8 +913,8 @@ else if (data is AssetData.Etf) {
                 bazinPrice = parseBR(indicatorStates["bazin"] ?: "0"), 
                 cagrProfit5Years = parseBR(indicatorStates["cLuc"] ?: "0")/100, 
                 cagrRevenue5Years = parseBR(indicatorStates["cRec"] ?: "0")/100, 
-                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0", 1_000_000.0)*1_000_000,
-                netEquity = parseBR(indicatorStates["netEquity"] ?: "0", 1_000_000.0)*1_000_000
+                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0"),
+                netEquity = parseBR(indicatorStates["netEquity"] ?: "0")
             )
             is AssetData.Fii -> data.copy(
                 name = nameState, 
@@ -934,8 +934,8 @@ else if (data is AssetData.Etf) {
                 leverageValue = parseBR(indicatorStates["mLev"] ?: "0")/100, 
                 tenantScore = (indicatorStates["tScore"] ?: "0").ifBlank { "0" }.toInt(), 
                 leverageScore = (indicatorStates["lScore"] ?: "0").ifBlank { "0" }.toInt(), 
-                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0", 1_000_000.0)*1_000_000, 
-                aum = parseBR(indicatorStates["aum"] ?: "0", 1_000_000.0)*1_000_000
+                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0"), 
+                aum = parseBR(indicatorStates["aum"] ?: "0")
             )
             is AssetData.Etf -> data.copy(
                 name = nameState, 
@@ -946,13 +946,14 @@ else if (data is AssetData.Etf) {
                 userScore = parseBR(indicatorStates["uScore"] ?: "0"), 
                 adminFee = parseBR(indicatorStates["aFee"] ?: "0")/100, 
                 trackingError = parseBR(indicatorStates["te"] ?: "0")/100, 
-                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0", 1_000_000.0)*1_000_000, 
-                aum = parseBR(indicatorStates["aum"] ?: "0", 1_000_000.0)*1_000_000, 
+                avgDailyVolume = parseBR(indicatorStates["vol"] ?: "0"), 
+                aum = parseBR(indicatorStates["aum"] ?: "0"), 
                 numberOfHoldings = (indicatorStates["hold"] ?: "0").ifBlank { "0" }.toInt()
             )
             is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
             else -> data }; updated.fieldSources = sourceStates.filterValues { it != null }.mapValues { it.value!! }; onSave(updated) }, modifier = Modifier.weight(1f)) { Text("Salvar") }
  Spacer(modifier = Modifier.width(8.dp)); Button(onClick = { onDelete(data) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Deletar") } }
+        ProsConsSection(data.pros, data.cons, data.neutros)
     }
 }
 
@@ -962,11 +963,9 @@ fun EditRow(l: String, v: String, num: Boolean = false, source: FieldSource? = n
     val magnitudeIndicator = remember(v, num) {
         if (!num || v.isEmpty()) null
         else {
-            val isMillionsField = l.contains("(M)")
-            val parsed = parseBR(v, if (isMillionsField) 1_000_000.0 else 1.0)
-            val absolute = if (isMillionsField) parsed * 1_000_000 else parsed
-            if (absolute >= 1_000 && (v.any { it.isLetter() } || !v.contains(","))) {
-                formatBR(absolute)
+            val parsed = parseBR(v)
+            if (parsed >= 1_000) {
+                formatSmart(parsed)
             } else null
         }
     }
@@ -1018,10 +1017,17 @@ fun AssetDetails(data: AssetData) {
             DetailsRow("ROE", formatBR(data.roe * 100) + "%")
             if (data.subSector.contains("Bancos")) DetailsRow("Basileia", formatBR(data.baselIndex * 100) + "%") 
             else DetailsRow("Dív/EBITDA", formatBR(data.debtToEbitda))
+            DetailsRow("Vol. Diário", formatSmart(data.avgDailyVolume))
+            DetailsRow("Patrimônio", formatSmart(data.netEquity))
         } else if (data is AssetData.Fii) {
             DetailsRow("P/VP", formatBR(data.pvp))
             DetailsRow("DY 12m", formatBR(data.yield12m * 100) + "%")
             DetailsRow("Alavancagem", formatBR(data.leverageValue * 100) + "%")
+            DetailsRow("Vol. Diário", formatSmart(data.avgDailyVolume))
+            DetailsRow("Patrimônio", formatSmart(data.aum))
+        } else if (data is AssetData.Etf) {
+            DetailsRow("Vol. Diário", formatSmart(data.avgDailyVolume))
+            DetailsRow("Patrimônio", formatSmart(data.aum))
         }
     }
 }
