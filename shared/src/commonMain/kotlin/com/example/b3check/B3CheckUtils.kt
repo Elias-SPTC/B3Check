@@ -14,22 +14,28 @@ fun formatBR(v: Double, emptyIfZero: Boolean = false): String {
 fun formatSmart(v: Double, emptyIfZero: Boolean = false): String {
     if (emptyIfZero && v == 0.0) return ""
     val absV = kotlin.math.abs(v)
-    // Se o número tem precisão "quebrada" significativa, mantém o formato original
-    val isRound = (absV % 1000.0 == 0.0) || absV < 1000.0
+    val epsilon = 0.0001
     
+    // Verifica se o número pode ser simplificado sem perda de precisão significativa
+    fun canSimplify(value: Double, divisor: Double): Boolean {
+        val simplified = value / divisor
+        val roundedSimplified = kotlin.math.round(simplified * 100.0) / 100.0
+        // Condição: O número deve ser inteiro e o resultado da simplificação deve ter no máximo 2 casas decimais
+        return kotlin.math.abs(simplified - roundedSimplified) < epsilon && 
+               kotlin.math.abs(value - kotlin.math.round(value)) < epsilon
+    }
+
     return when {
-        !isRound -> formatBR(v)
-        absV >= 1_000_000_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f T", v / 1_000_000_000_000.0)
-        absV >= 1_000_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f B", v / 1_000_000_000.0)
-        absV >= 1_000_000.0 -> String.format(Locale("pt", "BR"), "%.2f M", v / 1_000_000.0)
-        absV >= 1_000.0 -> String.format(Locale("pt", "BR"), "%.2f K", v / 1_000.0)
+        absV >= 1_000_000_000_000.0 && canSimplify(absV, 1_000_000_000_000.0) -> String.format(Locale("pt", "BR"), "%.2f T", v / 1_000_000_000_000.0)
+        absV >= 1_000_000_000.0 && canSimplify(absV, 1_000_000_000.0) -> String.format(Locale("pt", "BR"), "%.2f B", v / 1_000_000_000.0)
+        absV >= 1_000_000.0 && canSimplify(absV, 1_000_000.0) -> String.format(Locale("pt", "BR"), "%.2f M", v / 1_000_000.0)
+        absV >= 1_000.0 && canSimplify(absV, 1_000.0) -> String.format(Locale("pt", "BR"), "%.2f K", v / 1_000.0)
         else -> formatBR(v)
     }
 }
 
 /**
  * Converte string formatada (ex: 1.234,56 ou 10M) para Double.
- * @param unitScale Multiplicador da unidade exibida na UI (ex: 1_000_000 para campos "(M)")
  */
 fun parseBR(v: String, unitScale: Double = 1.0): Double {
     if (v.isBlank()) return 0.0
