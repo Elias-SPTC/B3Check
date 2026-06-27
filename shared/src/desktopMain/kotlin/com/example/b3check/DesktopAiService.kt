@@ -11,8 +11,8 @@ class DesktopAiService : AiService {
 
     override suspend fun ask(ticker: String, question: String, apiKey: String): String = withContext(Dispatchers.IO) {
         try {
-            // Modelo Gemini 2.0 Flash: Versão que obteve sucesso de comunicação, mantida para garantir a ponte técnica
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
+            // Modelo Gemini 2.5 Flash: Versão identificada com cota disponível no console, otimizando o acesso analítico
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
