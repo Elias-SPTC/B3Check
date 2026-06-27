@@ -124,11 +124,11 @@ fun GlobalAiScreen(viewModel: StockViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.Bottom) {
             BasicTextField(
                 value = question,
                 onValueChange = { question = it },
-                modifier = Modifier.weight(1f).height(40.dp).background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small).padding(8.dp),
+                modifier = Modifier.weight(1f).height(100.dp).background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small).padding(8.dp),
                 textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
                 decorationBox = { inner -> if (question.isEmpty()) Text("Sua pergunta...", color = Color.Gray); inner() }
             )
