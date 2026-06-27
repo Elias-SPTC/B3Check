@@ -11,15 +11,14 @@ class DesktopAiService : AiService {
 
     override suspend fun ask(ticker: String, question: String, apiKey: String): String = withContext(Dispatchers.IO) {
         try {
-            // Modelo Gemini Pro no canal v1: O setup mais estável e compatível globalmente para evitar o erro 404
-            val url = URL("https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=$apiKey")
+            // Modelo Gemini 2.0 Flash: Versão que obteve sucesso de comunicação, mantida para garantir a ponte técnica
+            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Accept", "application/json")
             connection.doOutput = true
 
-            val prompt = "Ativo: $ticker. Pergunta: $question. Responda de forma curta e objetiva."
+            val prompt = if (ticker == "GLOBAL") question else "Ativo: $ticker. Pergunta: $question. Responda de forma curta e objetiva."
             val body = mapOf(
                 "contents" to listOf(
                     mapOf("parts" to listOf(mapOf("text" to prompt)))

@@ -81,6 +81,12 @@ fun MainContainer(
                     icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null) },
                     label = { Text("Investir", fontSize = 10.sp) }
                 )
+                NavigationBarItem(
+                    selected = currentTab == 5,
+                    onClick = { currentTab = 5 },
+                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null) },
+                    label = { Text("IA Global", fontSize = 10.sp) }
+                )
             }
         }
     ) { innerPadding ->
@@ -91,8 +97,56 @@ fun MainContainer(
                 2 -> PortfolioBalanceScreen(viewModel)
                 3 -> RecommendationsScreen(viewModel)
                 4 -> InvestScreen(viewModel)
+                5 -> GlobalAiScreen(viewModel)
             }
         }
+    }
+}
+
+@Composable
+fun GlobalAiScreen(viewModel: StockViewModel) {
+    var question by rememberSaveable { mutableStateOf("") }
+    val response by viewModel.globalAiResponse.collectAsState()
+    val status by viewModel.aiStatus.collectAsState()
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Inteligência Global da Carteira", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(8.dp))
+        Text("Faça perguntas analíticas sobre o conjunto total dos seus ativos salvos no banco de dados.", fontSize = 12.sp, color = Color.Gray)
+        Spacer(Modifier.height(16.dp))
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium).padding(12.dp).verticalScroll(rememberScrollState())) {
+            if (response == null) {
+                Text("Aguardando pergunta...\nExemplos:\n- Quais ativos têm maior risco de liquidez?\n- Qual setor está com melhor nota média?\n- Quais FIIs de tijolo têm menor vacância?", color = Color.Gray)
+            } else {
+                Text(response!!, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = question,
+                onValueChange = { question = it },
+                modifier = Modifier.weight(1f).height(40.dp).background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small).padding(8.dp),
+                textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
+                decorationBox = { inner -> if (question.isEmpty()) Text("Sua pergunta...", color = Color.Gray); inner() }
+            )
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = { if (question.isNotBlank()) viewModel.askAiGlobal(question) },
+                enabled = status != "Analisando Carteira..." && question.isNotBlank(),
+                contentPadding = PaddingValues(horizontal = 12.dp)
+            ) {
+                Text(if (status == "Analisando Carteira...") "..." else "Perguntar")
+            }
+        }
+        if (response != null) {
+            TextButton(onClick = { viewModel.clearGlobalAi(); question = "" }, modifier = Modifier.align(Alignment.End)) {
+                Text("Limpar Análise", color = Color.Red, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
     }
 }
 

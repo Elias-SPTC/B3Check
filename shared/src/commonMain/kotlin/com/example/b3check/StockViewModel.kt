@@ -21,6 +21,9 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
     private val _portfolioAllocation = MutableStateFlow<List<Pair<AssetData, Double>>>(emptyList())
     val portfolioAllocation: StateFlow<List<Pair<AssetData, Double>>> = _portfolioAllocation.asStateFlow()
 
+    private val _globalAiResponse = MutableStateFlow<String?>(null)
+    val globalAiResponse: StateFlow<String?> = _globalAiResponse.asStateFlow()
+
     init { loadAllAssets() }
 
     fun loadAllAssets() {
@@ -106,6 +109,44 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }
     }
 
+    fun askAiGlobal(question: String) {
+        if (geminiApiKey.isBlank()) {
+            _aiStatus.value = "Chave Ausente"
+            return
+        }
+        _aiStatus.value = "Analisando Carteira..."
+        viewModelScope.launch {
+            try {
+                val context = generatePortfolioContext()
+                val prompt = "Você é um analista expert em investimentos. Abaixo está o snapshot da minha carteira com tickers, setores, contribuições para a nota técnica e volumes de liquidez. Baseado nesses dados locais e no seu conhecimento de mercado, responda: $question\n\nCONTEXTO DA CARTEIRA:\n$context"
+                val response = ai.ask("GLOBAL", prompt, geminiApiKey)
+                _globalAiResponse.value = response
+                _aiStatus.value = "Pronto"
+            } catch (e: Exception) {
+                _globalAiResponse.value = "Erro ao processar análise global: ${e.message}"
+                _aiStatus.value = "Erro na IA"
+            }
+        }
+    }
+
+    private fun generatePortfolioContext(): String {
+        return allAssets.value.joinToString("\n") { asset ->
+            val score = calculateScoreForAsset(asset)
+            val info = when(asset) {
+                is AssetData.Stock -> "Setor: ${asset.sector}, Patrimônio: ${formatSmart(asset.netEquity)}, Vol: ${formatSmart(asset.avgDailyVolume)}"
+                is AssetData.Fii -> "Setor: ${asset.sector}, Patrimônio: ${formatSmart(asset.aum)}, Vol: ${formatSmart(asset.avgDailyVolume)}"
+                is AssetData.Etf -> "Patrimônio: ${formatSmart(asset.aum)}, Vol: ${formatSmart(asset.avgDailyVolume)}"
+                is AssetData.Bdr -> "Cotação: ${formatSmart(asset.currentPrice)}"
+            }
+            "- ${asset.ticker} (${asset.name}): Score Motor ${formatBR(score)}. $info"
+        }
+    }
+
+    fun clearGlobalAi() {
+        _globalAiResponse.value = null
+        _aiStatus.value = "Pronto"
+    }
+
     private fun parseAiResponse(response: String): Map<String, Double> {
         val map = mutableMapOf<String, Double>()
         val keys = listOf("aFee", "te", "vol", "aum", "hold")
@@ -189,125 +230,97 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
     }
 
-    fun calculateScoreForAsset(data: AssetData): Double {
-        if (data.userScorePriority && data.userScore > 0) {
-            data.pros = listOf("Prioridade Manual Ativa")
-            data.cons = emptyList(); data.neutros = emptyList()
-            return data.userScore
+    fun calculateScoreForAsset(assetData: AssetData): Double {
+        if (assetData.userScorePriority && assetData.userScore > 0) {
+            assetData.pros = listOf("Prioridade Manual Ativa")
+            assetData.cons = emptyList(); assetData.neutros = emptyList()
+            return assetData.userScore
         }
         
         val indicatorResults = mutableListOf<Triple<String, Double, Double>>() // Label, Weight, Multiplier (1.0, 0.0, -1.0)
-        val sources = data.fieldSources ?: emptyMap()
+        val sources = assetData.fieldSources ?: emptyMap()
         fun isFilled(key: String, value: Double): Boolean = sources.containsKey(key) || value != 0.0
 
-        when (data) {
+        when (assetData) {
             is AssetData.Stock -> {
-                val sec = data.sector.trim().lowercase()
-                val sub = data.subSector.trim().lowercase()
+                val sec = assetData.sector.trim().lowercase()
+                val sub = assetData.subSector.trim().lowercase()
                 val isBank = sub.contains("banco")
-                val isInsurance = sub.contains("seguradora")
-                val isHolding = sub.contains("holding")
-                val isFinancial = isBank || isInsurance || isHolding
+                val isFinancial = isBank || sub.contains("seguradora") || sub.contains("holding")
                 val isUtility = sec.contains("utilidade") || sec.contains("pública") || sub.contains("elétrica")
                 
-                if (isFilled("roe", data.roe)) {
+                if (isFilled("roe", assetData.roe)) {
                     val w = if (isFinancial) 3.0 else 2.5
                     val meta = if (isFinancial) 0.15 else if (isUtility) 0.10 else 0.14
-                    val m = if (data.roe >= meta) 1.0 else if (data.roe < meta * 0.6) -1.0 else 0.0
-                    indicatorResults.add(Triple("ROE: ${formatBR(data.roe*100)}%", w, m))
+                    val m = if (assetData.roe >= meta) 1.0 else if (assetData.roe < meta * 0.6) -1.0 else 0.0
+                    indicatorResults.add(Triple("ROE: ${formatBR(assetData.roe*100)}%", w, m))
                 }
-                if (isBank && isFilled("basel", data.baselIndex)) {
-                    val m = if (data.baselIndex >= 0.14) 1.0 else if (data.baselIndex < 0.11) -1.0 else 0.0
+                if (isBank && isFilled("basel", assetData.baselIndex)) {
+                    val m = if (assetData.baselIndex >= 0.14) 1.0 else if (assetData.baselIndex < 0.11) -1.0 else 0.0
                     indicatorResults.add(Triple("Basileia", 2.0, m))
                 } else if (!isFinancial) {
                     val limit = if (isUtility) 4.5 else 3.0
-                    if (isFilled("deEbitda", data.debtToEbitda)) {
-                        val m = if (data.debtToEbitda < limit) 1.0 else if (data.debtToEbitda > limit * 1.5) -1.0 else 0.0
-                        indicatorResults.add(Triple("Dívida/EBITDA", 1.0, m))
-                    }
-                    if (isFilled("de", data.debtToEquity)) {
-                        val m = if (data.debtToEquity < 1.0) 1.0 else if (data.debtToEquity > 2.0) -1.0 else 0.0
-                        indicatorResults.add(Triple("Dívida/Patrimônio", 1.0, m))
+                    if (isFilled("deEbitda", assetData.debtToEbitda)) {
+                        val m = if (assetData.debtToEbitda < limit) 1.0 else if (assetData.debtToEbitda > limit * 1.5) -1.0 else 0.0
+                        indicatorResults.add(Triple("Endividamento (EBITDA)", 1.0, m))
                     }
                 }
-                if (isBank || isFilled("ml", data.netMargin)) {
-                    val m = if (data.netMargin > 0.12 || isBank) 1.0 else if (data.netMargin < 0.05) -1.0 else 0.0
+                if (isBank || isFilled("ml", assetData.netMargin)) {
+                    val m = if (assetData.netMargin > 0.12 || isBank) 1.0 else if (assetData.netMargin < 0.05) -1.0 else 0.0
                     indicatorResults.add(Triple("Margem Líquida", 1.0, m))
                 }
-                if (isFilled("cLuc", data.cagrProfit5Years)) {
-                    val m = if (data.cagrProfit5Years >= 0.08) 1.0 else if (data.cagrProfit5Years < 0) -1.0 else 0.0
-                    indicatorResults.add(Triple("CAGR Lucro (5a)", 1.0, m))
-                }
-                if (!isBank && isFilled("cRec", data.cagrRevenue5Years)) {
-                    val m = if (data.cagrRevenue5Years >= 0.08) 1.0 else if (data.cagrRevenue5Years < 0) -1.0 else 0.0
-                    indicatorResults.add(Triple("CAGR Receita (5a)", 0.5, m))
-                }
-                if (isFilled("pvp", data.pvp)) {
+                if (isFilled("pvp", assetData.pvp)) {
                     val pvpLimit = if (isBank) 1.8 else 2.0
-                    val m = if (data.pvp in 0.1..pvpLimit) 1.0 else if (data.pvp > pvpLimit + 1.0) -1.0 else 0.0
+                    val m = if (assetData.pvp in 0.1..pvpLimit) 1.0 else if (assetData.pvp > pvpLimit + 1.0) -1.0 else 0.0
                     indicatorResults.add(Triple("P/VP (Valuation)", 1.0, m))
                 }
-                if (isFilled("pl", data.pl)) {
-                    val m = if (data.pl in 1.0..20.0) 1.0 else if (data.pl > 30.0 || data.pl < 0) -1.0 else 0.0
-                    indicatorResults.add(Triple("P/L (Valuation)", 1.0, m))
-                }
-                if (isFilled("dy", data.dividendYield)) {
-                    val m = if (data.dividendYield >= 0.05) 1.0 else if (data.dividendYield < 0.02) -1.0 else 0.0
+                if (isFilled("dy", assetData.dividendYield)) {
+                    val m = if (assetData.dividendYield >= 0.05) 1.0 else if (assetData.dividendYield < 0.02) -1.0 else 0.0
                     indicatorResults.add(Triple("Dividend Yield", 1.0, m))
                 }
-                if (isFilled("payout", data.payout)) {
-                    val m = if (data.payout in 0.2..0.9) 1.0 else if (data.payout > 1.0) -1.0 else 0.0
-                    indicatorResults.add(Triple("Payout", 0.5, m))
-                }
-                if (isFilled("netEquity", data.netEquity)) {
-                    val m = if (data.netEquity >= 1_000_000_000.0) 1.0 else 0.0
-                    indicatorResults.add(Triple("Blue Chip (+1Bi)", 0.5, m))
-                }
-                if (isFilled("vol", data.avgDailyVolume)) {
-                    val m = if (data.avgDailyVolume >= 1_000_000) 1.0 else if (data.avgDailyVolume < 100_000) -1.0 else 0.0
-                    indicatorResults.add(Triple("Liquidez Diária", 0.5, m))
+                if (isFilled("netEquity", assetData.netEquity)) {
+                    val m = if (assetData.netEquity >= 1_000_000_000.0) 1.0 else 0.0
+                    indicatorResults.add(Triple("Porte (Patrimônio)", 0.5, m))
                 }
             }
             is AssetData.Fii -> {
-                val isPapel = data.sector.lowercase().contains("papel")
-                if (isFilled("pvp", data.pvp)) {
+                val isPapel = assetData.sector.lowercase().contains("papel")
+                if (isFilled("pvp", assetData.pvp)) {
                     val limit = if (isPapel) 1.03 else 1.08
-                    val m = if (data.pvp <= limit) 1.0 else if (data.pvp > limit + 0.15) -1.0 else 0.0
+                    val m = if (assetData.pvp <= limit) 1.0 else if (assetData.pvp > limit + 0.15) -1.0 else 0.0
                     indicatorResults.add(Triple("P/VP", 2.5, m))
                 }
-                if (isFilled("y12", data.yield12m)) {
-                    val m = if (data.yield12m >= 0.09) 1.0 else if (data.yield12m < 0.06) -1.0 else 0.0
+                if (isFilled("y12", assetData.yield12m)) {
+                    val m = if (assetData.yield12m >= 0.09) 1.0 else if (assetData.yield12m < 0.06) -1.0 else 0.0
                     indicatorResults.add(Triple("Yield 12m", 2.5, m))
                 }
-                if (isFilled("y5", data.avgYield5Years)) {
-                    val m = if (data.avgYield5Years >= 0.08) 1.0 else if (data.avgYield5Years < 0.05) -1.0 else 0.0
-                    indicatorResults.add(Triple("Consistência Yield", 1.0, m))
+                if (!isPapel && isFilled("vac", assetData.vacancy)) {
+                    val m = if (assetData.vacancy < 0.07) 1.0 else if (assetData.vacancy > 0.20) -1.0 else 0.0
+                    indicatorResults.add(Triple("Vacância", 2.0, m))
                 }
-                if (sources.containsKey("tScore") || data.tenantScore > 0) {
-                    val m = if (data.tenantScore >= 4) 1.0 else if (data.tenantScore <= 1) -1.0 else 0.0
-                    indicatorResults.add(Triple("Inquilinos", 1.5, m))
+                if (sources.containsKey("tScore") || assetData.tenantScore > 0) {
+                    val m = if (assetData.tenantScore >= 4) 1.0 else if (assetData.tenantScore <= 1) -1.0 else 0.0
+                    indicatorResults.add(Triple("Qualidade Inquilinos", 1.5, m))
                 }
-                if (sources.containsKey("lScore") || data.leverageScore > 0) {
-                    val m = if (data.leverageScore >= 4) 1.0 else if (data.leverageScore <= 1) -1.0 else 0.0
-                    indicatorResults.add(Triple("Alavancagem", 1.5, m))
+                if (sources.containsKey("lScore") || assetData.leverageScore > 0) {
+                    val m = if (assetData.leverageScore >= 4) 1.0 else if (assetData.leverageScore <= 1) -1.0 else 0.0
+                    indicatorResults.add(Triple("Nível Alavancagem", 1.5, m))
                 }
-                if (!isPapel) {
-                    if (isFilled("vac", data.vacancy)) { val m = if (data.vacancy < 0.10) 1.0 else if (data.vacancy > 0.25) -1.0 else 0.0; indicatorResults.add(Triple("Vacância", 0.5, m)) }
-                    if (isFilled("prop", data.propertyCount.toDouble())) { val m = if (data.propertyCount > 5) 1.0 else if (data.propertyCount == 1) -1.0 else 0.0; indicatorResults.add(Triple("Qtd Imóveis", 0.5, m)) }
-                    if (isFilled("walt", data.weightedLeaseTerm)) { val m = if (data.weightedLeaseTerm >= 4.0) 1.0 else if (data.weightedLeaseTerm < 2.0) -1.0 else 0.0; indicatorResults.add(Triple("WALT", 1.0, m)) }
-                }
-                if (sources.containsKey("mType")) { val m = if (data.managementType.lowercase() == "ativa") 1.0 else 0.0; indicatorResults.add(Triple("Gestão Ativa", 0.5, m)) }
-                if (isFilled("mFee", data.managementFee)) { val m = if (data.managementFee <= 0.01) 1.0 else if (data.managementFee > 0.015) -1.0 else 0.0; indicatorResults.add(Triple("Taxa Adm", 0.5, m)) }
-                if (isFilled("aum", data.aum)) { val m = if (data.aum >= 300_000_000) 1.0 else if (data.aum < 100_000_000) -1.0 else 0.0; indicatorResults.add(Triple("Patrimônio (PL)", 1.0, m)) }
             }
             is AssetData.Etf -> {
-                if (isFilled("aFee", data.adminFee)) { val m = if (data.adminFee <= 0.005) 1.0 else if (data.adminFee > 0.01) -1.0 else 0.0; indicatorResults.add(Triple("Taxa Adm", 6.0, m)) }
-                if (isFilled("hold", data.numberOfHoldings.toDouble())) { val m = if (data.numberOfHoldings > 50) 1.0 else if (data.numberOfHoldings < 20) -1.0 else 0.0; indicatorResults.add(Triple("Diversificação", 4.0, m)) }
+                if (isFilled("aFee", assetData.adminFee)) {
+                    val m = if (assetData.adminFee <= 0.004) 1.0 else if (assetData.adminFee > 0.01) -1.0 else 0.0
+                    indicatorResults.add(Triple("Taxa Adm", 6.0, m))
+                }
+                if (isFilled("hold", assetData.numberOfHoldings.toDouble())) {
+                    val m = if (assetData.numberOfHoldings > 50) 1.0 else 0.0
+                    indicatorResults.add(Triple("Diversificação", 4.0, m))
+                }
             }
             is AssetData.Bdr -> {
-                if (data is AssetData.Bdr) {
-                    if (isFilled("dy", data.dividendYield)) { val m = if (data.dividendYield > 0.02) 1.0 else -1.0; indicatorResults.add(Triple("Dividendos", 5.0, m)) }
-                    val p = if(data.parity=="1:1") 1.0 else 0.0; indicatorResults.add(Triple("Paridade", 5.0, p))
+                if (assetData is AssetData.Bdr) {
+                    if (isFilled("dy", assetData.dividendYield)) { val m = if (assetData.dividendYield > 0.02) 1.0 else -1.0; indicatorResults.add(Triple("Dividendos", 5.0, m)) }
+                    val p = if(assetData.parity=="1:1") 1.0 else 0.0; indicatorResults.add(Triple("Paridade", 5.0, p))
                 }
             }
         }
@@ -330,9 +343,9 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }
 
         val rawScore = (5.0 + netImpactAccumulator).coerceIn(0.0, 10.0)
-        val final = if (data.userScoreAverage && data.userScore > 0) (rawScore + data.userScore) / 2.0 else rawScore
+        val final = if (assetData.userScoreAverage && assetData.userScore > 0) (rawScore + assetData.userScore) / 2.0 else rawScore
 
-        data.pros = prosList; data.cons = consList; data.neutros = neutrosList
+        assetData.pros = prosList; assetData.cons = consList; assetData.neutros = neutrosList
         return final.coerceIn(0.0, 10.0)
     }
 
