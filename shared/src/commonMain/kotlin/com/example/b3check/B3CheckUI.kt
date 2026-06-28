@@ -97,14 +97,14 @@ fun MainContainer(
                 2 -> PortfolioBalanceScreen(viewModel)
                 3 -> RecommendationsScreen(viewModel)
                 4 -> InvestScreen(viewModel)
-                5 -> GlobalAiScreen(viewModel)
+                5 -> GlobalAiScreen(viewModel, onExport)
             }
         }
     }
 }
 
 @Composable
-fun GlobalAiScreen(viewModel: StockViewModel) {
+fun GlobalAiScreen(viewModel: StockViewModel, onExport: (String, String) -> Unit = { _, _ -> }) {
     var question by rememberSaveable { mutableStateOf("") }
     val response by viewModel.globalAiResponse.collectAsState()
     val status by viewModel.aiStatus.collectAsState()
@@ -142,8 +142,16 @@ fun GlobalAiScreen(viewModel: StockViewModel) {
             }
         }
         if (response != null) {
-            TextButton(onClick = { viewModel.clearGlobalAi(); question = "" }, modifier = Modifier.align(Alignment.End)) {
-                Text("Limpar Análise", color = Color.Red, fontSize = 12.sp)
+            Row(modifier = Modifier.align(Alignment.End)) {
+                TextButton(onClick = { 
+                    val textToSave = "PERGUNTA:\n$question\n\nRESPOSTA DA IA:\n${response!!}"
+                    onExport(textToSave, "Analise-IA-${viewModel.getCurrentDate()}.txt") 
+                }) {
+                    Text("Gravar TXT", fontSize = 12.sp)
+                }
+                TextButton(onClick = { viewModel.clearGlobalAi(); question = "" }) {
+                    Text("Limpar Análise", color = Color.Red, fontSize = 12.sp)
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
