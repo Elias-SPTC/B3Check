@@ -115,15 +115,6 @@ fun GlobalAiScreen(viewModel: StockViewModel, onExport: (String, String) -> Unit
         Text("Faça perguntas analíticas sobre o conjunto total dos seus ativos salvos no banco de dados.", fontSize = 12.sp, color = Color.Gray)
         Spacer(Modifier.height(16.dp))
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium).padding(12.dp).verticalScroll(rememberScrollState())) {
-            if (response == null) {
-                Text("Aguardando pergunta...\nExemplos:\n- Quais ativos têm maior risco de liquidez?\n- Qual setor está com melhor nota média?\n- Quais FIIs de tijolo têm menor vacância?", color = Color.Gray)
-            } else {
-                Text(response!!, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             BasicTextField(
                 value = question,
@@ -141,6 +132,17 @@ fun GlobalAiScreen(viewModel: StockViewModel, onExport: (String, String) -> Unit
                 Text(if (status == "Analisando Carteira...") "..." else "Perguntar")
             }
         }
+
+        Spacer(Modifier.height(16.dp))
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium).padding(12.dp).verticalScroll(rememberScrollState())) {
+            if (response == null) {
+                Text("Aguardando pergunta...\nExemplos:\n- Quais ativos têm maior risco de liquidez?\n- Qual setor está com melhor nota média?\n- Quais FIIs de tijolo têm menor vacância?", color = Color.Gray)
+            } else {
+                Text(response!!, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
         if (response != null) {
             Row(modifier = Modifier.align(Alignment.End)) {
                 TextButton(onClick = { 
