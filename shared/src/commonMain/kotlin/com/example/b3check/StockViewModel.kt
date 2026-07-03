@@ -131,7 +131,7 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
 
     private fun generatePortfolioContext(): String {
         return allAssets.value.joinToString("\n") { asset ->
-            val score = calculateScoreForAsset(asset)
+            val scoreMotor = calculateScoreForAsset(asset)
             val type = when(asset) {
                 is AssetData.Stock -> "Ação"
                 is AssetData.Fii -> "FII"
@@ -144,16 +144,16 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             }.joinToString(", ")
 
             val totalValue = asset.sharesCount * asset.currentPrice
-            val baseInfo = "Vlr Total: R$ ${formatBR(totalValue)}, Preço: ${formatBR(asset.currentPrice)}, Score Motor: ${formatBR(score)}"
+            val baseInfo = "Vlr Total: R$ ${formatBR(totalValue)}, Preço: ${formatBR(asset.currentPrice)}, Score Motor: ${formatBR(scoreMotor)}, Nota Manual: ${formatBR(asset.userScore)} (Prioridade: ${if(asset.userScorePriority) "Sim" else "Não"}, Média: ${if(asset.userScoreAverage) "Sim" else "Não"})"
 
             val details = when(asset) {
-                is AssetData.Stock -> "Setor: ${asset.sector}/${asset.subSector}, ROE: ${formatBR(asset.roe*100)}%, Dív. Líq. / Ebitda: ${formatBR(asset.debtToEbitda)}, P/L: ${formatBR(asset.pl)}, P/VP: ${formatBR(asset.pvp)}, DY: ${formatBR(asset.dividendYield*100)}%, Bazin: ${formatBR(asset.bazinPrice)}, Graham: ${formatBR(asset.grahamPrice)}"
-                is AssetData.Fii -> "Setor: ${asset.sector}, Vacância: ${formatBR(asset.vacancy*100)}%, P/VP: ${formatBR(asset.pvp)}, DY 12m: ${formatBR(asset.yield12m*100)}%, Imóveis: ${asset.propertyCount}, Gestão: ${asset.managementType}, Nota Alavancagem: ${asset.leverageScore}/5"
-                is AssetData.Etf -> "Taxa: ${formatBR(asset.adminFee*100)}%, Holdings: ${asset.numberOfHoldings}, Patrimônio: ${formatSmart(asset.aum)}"
-                is AssetData.Bdr -> "DY: ${formatBR(asset.dividendYield*100)}%, Paridade: ${asset.parity}"
+                is AssetData.Stock -> "Setor: ${asset.sector}/${asset.subSector}, ROE: ${formatBR(asset.roe*100)}%, Dív. Líq./Ebitda: ${formatBR(asset.debtToEbitda)}, P/L: ${formatBR(asset.pl)}, P/VP: ${formatBR(asset.pvp)}, DY: ${formatBR(asset.dividendYield*100)}%, DY5a: ${formatBR(asset.dividendYield5Years*100)}%, Payout: ${formatBR(asset.payout*100)}%, CAGR Lucro: ${formatBR(asset.cagrProfit5Years*100)}%, Vol: ${formatSmart(asset.avgDailyVolume)}, Patr: ${formatSmart(asset.netEquity)}, Bazin: ${formatBR(asset.bazinPrice)}, Graham: ${formatBR(asset.grahamPrice)}"
+                is AssetData.Fii -> "Setor: ${asset.sector}, Vacância: ${formatBR(asset.vacancy*100)}%, P/VP: ${formatBR(asset.pvp)}, DY12m: ${formatBR(asset.yield12m*100)}%, DY5a: ${formatBR(asset.avgYield5Years*100)}%, Imóveis: ${asset.propertyCount}, Gestão: ${asset.managementType}, Nota Inquilino: ${asset.tenantScore}/5, Nota Alavancagem: ${asset.leverageScore}/5, WALT: ${asset.weightedLeaseTerm} anos, Taxa Adm: ${formatBR(asset.managementFee*100)}%, Vol: ${formatSmart(asset.avgDailyVolume)}, PL: ${formatSmart(asset.aum)}"
+                is AssetData.Etf -> "Taxa: ${formatBR(asset.adminFee*100)}%, Tracking Error: ${formatBR(asset.trackingError*100)}%, Holdings: ${asset.numberOfHoldings}, PL: ${formatSmart(asset.aum)}, Vol: ${formatSmart(asset.avgDailyVolume)}"
+                is AssetData.Bdr -> "DY: ${formatBR(asset.dividendYield*100)}%, Paridade: ${asset.parity}, Preço: ${formatBR(asset.currentPrice)}"
             }
             
-            val audit = "Principais Prós: ${asset.pros.take(2).joinToString("; ")}, Contras: ${asset.cons.take(2).joinToString("; ")}"
+            val audit = "Auditoria Motor -> Prós: ${asset.pros.joinToString("; ")}; Contras: ${asset.cons.joinToString("; ")}; Neutros: ${asset.neutros.joinToString("; ")}"
             
             "- [$type] ${asset.ticker} (${asset.name}): $status | $baseInfo | $details | $audit"
         }

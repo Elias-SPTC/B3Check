@@ -19,19 +19,19 @@ class MainActivity : ComponentActivity() {
                 val container = remember { B3CheckContainer(this) }
                 var importCallback by remember { mutableStateOf<((String) -> Unit)?>(null) }
 
+                var exportContent by remember { mutableStateOf("") }
                 val createDocumentLauncher = rememberLauncherForActivityResult(
-                    ActivityResultContracts.CreateDocument("application/json")
+                    ActivityResultContracts.CreateDocument("*/*")
                 ) { uri ->
                     uri?.let {
                         try {
-                            val json = container.dataSource.exportBackup()
                             contentResolver.openOutputStream(it)?.use { stream ->
-                                stream.write(json.toByteArray())
+                                stream.write(exportContent.toByteArray())
                                 stream.flush()
-                                Toast.makeText(this, "Backup criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "Arquivo salvo com sucesso!", Toast.LENGTH_SHORT).show()
                             }
                         } catch (e: Exception) {
-                            Toast.makeText(this, "Erro ao gravar backup", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, "Erro ao gravar arquivo", Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -41,7 +41,6 @@ class MainActivity : ComponentActivity() {
                 ) { uri ->
                     uri?.let {
                         try {
-                            // Leitura robusta via InputStream direta para evitar erros de charset/buffer
                             contentResolver.openInputStream(it)?.use { inputStream ->
                                 val json = inputStream.bufferedReader().use { r -> r.readText() }
                                 if (json.isNotBlank()) {
@@ -58,7 +57,8 @@ class MainActivity : ComponentActivity() {
 
                 MainContainer(
                     dataSource = container.dataSource,
-                    onExport = { _, defaultName -> 
+                    onExport = { content, defaultName -> 
+                        exportContent = content
                         createDocumentLauncher.launch(defaultName) 
                     },
                     onImport = { onResult -> 
