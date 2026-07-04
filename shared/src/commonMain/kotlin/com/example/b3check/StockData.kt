@@ -12,6 +12,7 @@ sealed class AssetData {
     abstract val isInert: Boolean 
     abstract val sharesCount: Double
     abstract val userScore: Double
+    abstract val marketScore: Double
     abstract val userScorePriority: Boolean
     abstract val userScoreAverage: Boolean
     var pros: List<String> = emptyList()
@@ -55,6 +56,7 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
+        override val marketScore: Double = 0.0,
         override val userScorePriority: Boolean = false,
         override val userScoreAverage: Boolean = false
     ) : AssetData()
@@ -87,6 +89,7 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
+        override val marketScore: Double = 0.0,
         override val userScorePriority: Boolean = false,
         override val userScoreAverage: Boolean = false
     ) : AssetData()
@@ -108,6 +111,7 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
+        override val marketScore: Double = 0.0,
         override val userScorePriority: Boolean = false,
         override val userScoreAverage: Boolean = false
     ) : AssetData()
@@ -124,6 +128,7 @@ sealed class AssetData {
         override val isInert: Boolean = false,
         override val sharesCount: Double = 0.0,
         override val userScore: Double = 0.0,
+        override val marketScore: Double = 0.0,
         override val userScorePriority: Boolean = false,
         override val userScoreAverage: Boolean = false
     ) : AssetData()

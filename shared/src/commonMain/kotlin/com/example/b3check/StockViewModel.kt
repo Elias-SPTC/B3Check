@@ -281,6 +281,38 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
     }
 
+    fun researchAllMarketScores() {
+        if (geminiApiKey.isBlank()) {
+            _aiStatus.value = "Chave Ausente"
+            return
+        }
+        _aiStatus.value = "Pesquisando Tudo..."
+        viewModelScope.launch {
+            val list = allAssets.value
+            list.forEachIndexed { index, asset ->
+                _aiStatus.value = "Pesquisando ${index + 1}/${list.size}..."
+                try {
+                    val prompt = "Pesquise na internet e atue como um analista sênior. Para o ativo ${asset.ticker}, forneça uma nota de 0.0 a 10.0 baseada no consenso atual do mercado e fundamentos. Responda APENAS o número (ex: 7.5)."
+                    val response = ai.ask(asset.ticker, prompt, geminiApiKey)
+                    val score = response.trim().replace(",", ".").filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0
+                    if (score > 0) {
+                        val updated = when(asset) {
+                            is AssetData.Stock -> asset.copy(marketScore = score)
+                            is AssetData.Fii -> asset.copy(marketScore = score)
+                            is AssetData.Etf -> asset.copy(marketScore = score)
+                            is AssetData.Bdr -> asset.copy(marketScore = score)
+                        }
+                        db.saveAsset(updated)
+                    }
+                } catch (e: Exception) {
+                    // Continua para o próximo mesmo em caso de erro individual
+                }
+            }
+            loadAllAssets()
+            _aiStatus.value = "Pesquisa Concluída"
+        }
+    }
+
     fun calculateScoreForAsset(data: AssetData): Double {
         val indicatorResults = mutableListOf<Triple<String, Double, Double>>() // Label, Weight, Multiplier (1.0, 0.0, -1.0)
         val sources = data.fieldSources ?: emptyMap()
@@ -391,8 +423,15 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             return data.userScore
         }
         
-        val final = if (data.userScoreAverage && data.userScore > 0) (rawScore + data.userScore) / 2.0 else rawScore
-        return final.coerceIn(0.0, 10.0)
+        if (data.userScoreAverage) {
+            val scores = mutableListOf<Double>()
+            scores.add(rawScore)
+            if (data.userScore > 0) scores.add(data.userScore)
+            if (data.marketScore > 0) scores.add(data.marketScore)
+            return scores.average().coerceIn(0.0, 10.0)
+        }
+
+        return rawScore.coerceIn(0.0, 10.0)
     }
 
     fun getIntegrityWarnings(asset: AssetData): List<String> {

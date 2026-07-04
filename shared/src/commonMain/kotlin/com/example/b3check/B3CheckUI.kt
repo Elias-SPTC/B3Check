@@ -168,6 +168,7 @@ fun AssetListScreen(
     onImport: (onResult: (String) -> Unit) -> Unit = {}
 ) {
     val assets by viewModel.allAssets.collectAsState()
+    val status by viewModel.aiStatus.collectAsState()
     var tickerToDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var showIntegrityReport by rememberSaveable { mutableStateOf(false) }
     var showRecalcSuccess by rememberSaveable { mutableStateOf(false) }
@@ -250,9 +251,13 @@ fun AssetListScreen(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Text("Ativos", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                if (status != "Pronto" && status != "Chave Ausente") {
+                    Text(status, fontSize = 11.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold)
+                }
             }
             Row {
                 IconButton(onClick = { onImport { viewModel.importBackup(it); showImportSuccess = true } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { viewModel.researchAllMarketScores() }) { Icon(Icons.Default.Public, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
                 IconButton(onClick = { onExport(viewModel.exportBackup(), "${viewModel.getCurrentDate()}-B3Check.json"); showExportSuccess = true }) { Icon(Icons.Default.Share, null, tint = MaterialTheme.colorScheme.onSurface) }
@@ -722,12 +727,20 @@ fun StockAnalysisScreen(viewModel: StockViewModel) {
 fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, onSave: (AssetData) -> Unit) {
     val motorScore = remember(data) {
         val raw = when(data) {
-            is AssetData.Stock -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
-            is AssetData.Fii -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
-            is AssetData.Etf -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
-            is AssetData.Bdr -> data.copy(userScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Stock -> data.copy(userScore = 0.0, marketScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Fii -> data.copy(userScore = 0.0, marketScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Etf -> data.copy(userScore = 0.0, marketScore = 0.0, userScorePriority = false, userScoreAverage = false)
+            is AssetData.Bdr -> data.copy(userScore = 0.0, marketScore = 0.0, userScorePriority = false, userScoreAverage = false)
         }
         viewModel.calculateScoreForAsset(raw)
+    }
+
+    val avgScore = remember(motorScore, data.userScore, data.marketScore) {
+        val scores = mutableListOf<Double>()
+        scores.add(motorScore)
+        if (data.userScore > 0) scores.add(data.userScore)
+        if (data.marketScore > 0) scores.add(data.marketScore)
+        scores.average()
     }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -751,8 +764,13 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
                 }
             )
             ScoreIndicator(
+                "Mercado",
+                data.marketScore,
+                Color(0xFFE65100)
+            )
+            ScoreIndicator(
                 "Média", 
-                (motorScore + data.userScore)/2.0, 
+                avgScore, 
                 Color(0xFF1976D2),
                 checked = data.userScoreAverage,
                 onCheck = { isChecked ->
@@ -772,9 +790,14 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
 }
 
 @Composable
-fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false, checked: Boolean? = null, onCheck: ((Boolean) -> Unit)? = null) {
+fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false, checked: Boolean? = null, onCheck: ((Boolean) -> Unit)? = null, onAction: (() -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
+            if (onAction != null) {
+                Icon(Icons.Default.Public, null, modifier = Modifier.size(14.dp).padding(start = 2.dp).clickable { onAction() }, tint = c)
+            }
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatBR(v), fontSize = if (main) 22.sp else 16.sp, fontWeight = FontWeight.Bold, color = c)
             if (checked != null && onCheck != null) {

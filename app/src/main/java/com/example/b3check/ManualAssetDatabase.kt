@@ -56,26 +56,30 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
         val asset = when(it) {
             is AssetData.Stock -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
-                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScore = it.userScore, marketScore = it.marketScore,
+                userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
                 isInert = it.isInert,
                 netEquity = it.netEquity
             )
             is AssetData.Fii -> it.copy(
                 sector = it.sector ?: "", subSector = it.subSector ?: "",
-                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScore = it.userScore, marketScore = it.marketScore,
+                userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
                 isInert = it.isInert
             )
             is AssetData.Etf -> it.copy(
                 sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
-                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScore = it.userScore, marketScore = it.marketScore,
+                userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
                 isInert = it.isInert
             )
             is AssetData.Bdr -> it.copy(
                 sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
-                userScore = it.userScore, userScorePriority = it.userScorePriority,
+                userScore = it.userScore, marketScore = it.marketScore,
+                userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
                 isInert = it.isInert
             )

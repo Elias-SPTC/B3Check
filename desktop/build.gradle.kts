@@ -33,3 +33,7 @@ compose.desktop {
         }
     }
 }
+
+tasks.withType<org.gradle.jvm.tasks.Jar>().configureEach {
+    archiveFileName.set("B3Check.jar")
+}

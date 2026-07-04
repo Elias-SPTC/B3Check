@@ -70,6 +70,7 @@ class DesktopDataSource : AssetDataSource {
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
                 userScore = it.userScore,
+                marketScore = it.marketScore,
                 userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage,
                 netEquity = it.netEquity
@@ -82,6 +83,7 @@ class DesktopDataSource : AssetDataSource {
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
                 userScore = it.userScore,
+                marketScore = it.marketScore,
                 userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage
             )
@@ -91,6 +93,7 @@ class DesktopDataSource : AssetDataSource {
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
                 userScore = it.userScore,
+                marketScore = it.marketScore,
                 userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage
             )
@@ -101,6 +104,7 @@ class DesktopDataSource : AssetDataSource {
                 isInPortfolio = it.isInPortfolio,
                 isInert = it.isInert,
                 userScore = it.userScore,
+                marketScore = it.marketScore,
                 userScorePriority = it.userScorePriority,
                 userScoreAverage = it.userScoreAverage
             )
