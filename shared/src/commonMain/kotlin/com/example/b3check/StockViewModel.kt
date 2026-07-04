@@ -292,18 +292,27 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             list.forEachIndexed { index, asset ->
                 _aiStatus.value = "Pesquisando ${index + 1}/${list.size}..."
                 try {
-                    val prompt = "Pesquise na internet e atue como um analista sênior. Para o ativo ${asset.ticker}, forneça uma nota de 0.0 a 10.0 baseada no consenso atual do mercado e fundamentos. Responda APENAS o número (ex: 7.5)."
+                    val prompt = "Pesquise na internet e atue como um analista sênior. Para o ativo ${asset.ticker}, forneça uma nota de 0.0 a 10.0 baseada no consenso atual do mercado e fundamentos. Responda APENAS o número decimal (ex: 7.5)."
                     val response = ai.ask(asset.ticker, prompt, geminiApiKey)
-                    val score = response.trim().replace(",", ".").filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0
-                    if (score > 0) {
-                        val updated = when(asset) {
-                            is AssetData.Stock -> asset.copy(marketScore = score)
-                            is AssetData.Fii -> asset.copy(marketScore = score)
-                            is AssetData.Etf -> asset.copy(marketScore = score)
-                            is AssetData.Bdr -> asset.copy(marketScore = score)
+                    
+                    if (!response.startsWith("Erro:")) {
+                        // Regex para extrair o primeiro número decimal (ex: 7.5 ou 7,5 ou 7)
+                        val regex = Regex("(\\d+([.,]\\d+)?)")
+                        val match = regex.find(response.replace(" ", ""))
+                        val score = match?.value?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
+                        
+                        if (score in 0.1..10.0) {
+                            val updated = when(asset) {
+                                is AssetData.Stock -> asset.copy(marketScore = score)
+                                is AssetData.Fii -> asset.copy(marketScore = score)
+                                is AssetData.Etf -> asset.copy(marketScore = score)
+                                is AssetData.Bdr -> asset.copy(marketScore = score)
+                            }
+                            db.saveAsset(updated)
                         }
-                        db.saveAsset(updated)
                     }
+                    // Pequeno delay para respeitar limites da API gratuita e evitar Erro 429
+                    kotlinx.coroutines.delay(1000)
                 } catch (e: Exception) {
                     // Continua para o próximo mesmo em caso de erro individual
                 }
