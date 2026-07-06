@@ -747,6 +747,9 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
         Text(data.ticker, fontWeight = FontWeight.Black, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
         Text(data.name, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { viewModel.researchMarketScore(data.ticker) }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Public, null, modifier = Modifier.size(20.dp), tint = Color(0xFFE65100))
+            }
             ScoreIndicator("Motor", motorScore, MaterialTheme.colorScheme.onSurface)
             ScoreIndicator(
                 "Manual", 
@@ -790,14 +793,9 @@ fun ScoreHeader(data: AssetData, finalScore: Double, viewModel: StockViewModel, 
 }
 
 @Composable
-fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false, checked: Boolean? = null, onCheck: ((Boolean) -> Unit)? = null, onAction: (() -> Unit)? = null) {
+fun ScoreIndicator(l: String, v: Double, c: Color, main: Boolean = false, checked: Boolean? = null, onCheck: ((Boolean) -> Unit)? = null) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
-            if (onAction != null) {
-                Icon(Icons.Default.Public, null, modifier = Modifier.size(14.dp).padding(start = 2.dp).clickable { onAction() }, tint = c)
-            }
-        }
+        Text(l, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = c)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatBR(v), fontSize = if (main) 22.sp else 16.sp, fontWeight = FontWeight.Bold, color = c)
             if (checked != null && onCheck != null) {
@@ -1032,8 +1030,21 @@ fun ManualEditor(data: AssetData, score: Double, onSave: (AssetData) -> Unit, on
                 aum = parseBR(indicatorStates["aum"] ?: "0"), 
                 numberOfHoldings = (indicatorStates["hold"] ?: "0").ifBlank { "0" }.toInt()
             )
-            is AssetData.Bdr -> data.copy(name = nameState, currentPrice = parseBR(priceState), isInPortfolio = inPortfolioState, isInert = isInertState, sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), userScore = parseBR(indicatorStates["uScore"] ?: "0"), dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, parity = indicatorStates["par"] ?: "1:1")
-            else -> data }; updated.fieldSources = sourceStates.filterValues { it != null }.mapValues { it.value!! }; onSave(updated) }, modifier = Modifier.weight(1f)) { Text("Salvar") }
+            is AssetData.Bdr -> data.copy(
+                name = nameState, 
+                currentPrice = parseBR(priceState), 
+                isInPortfolio = inPortfolioState, 
+                isInert = isInertState, 
+                sharesCount = parseBR(indicatorStates["cotas"] ?: "0"), 
+                userScore = parseBR(indicatorStates["uScore"] ?: "0"), 
+                dividendYield = parseBR(indicatorStates["dy"] ?: "0")/100, 
+                parity = indicatorStates["par"] ?: "1:1"
+            )
+            else -> data 
+        }
+        updated.fieldSources = sourceStates.filterValues { it != null }.mapValues { it.value!! }
+        onSave(updated) 
+    }, modifier = Modifier.weight(1f)) { Text("Salvar") }
  Spacer(modifier = Modifier.width(8.dp)); Button(onClick = { onDelete(data) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Deletar") } }
         ProsConsSection(data.pros, data.cons, data.neutros)
     }

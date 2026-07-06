@@ -243,6 +243,20 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         sanitized.fieldSources = sources
         sanitized.pros = data.pros; sanitized.cons = data.cons; sanitized.neutros = data.neutros
         sanitized.lastUpdated = data.lastUpdated; sanitized.qualitativeInsights = data.qualitativeInsights
+        
+        // Blindagem total contra notas de erro ou lixo histórico
+        if (sanitized.marketScore > 10.0 || sanitized.marketScore < 0.0) {
+            val reset = when(sanitized) {
+                is AssetData.Stock -> sanitized.copy(marketScore = 0.0)
+                is AssetData.Fii -> sanitized.copy(marketScore = 0.0)
+                is AssetData.Etf -> sanitized.copy(marketScore = 0.0)
+                is AssetData.Bdr -> sanitized.copy(marketScore = 0.0)
+            }
+            reset.pros = sanitized.pros; reset.cons = sanitized.cons; reset.neutros = sanitized.neutros
+            reset.lastUpdated = sanitized.lastUpdated; reset.fieldSources = sanitized.fieldSources
+            return reset
+        }
+        
         return sanitized
     }
 
@@ -281,44 +295,119 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         }.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
     }
 
+    fun researchMarketScore(ticker: String) {
+        if (geminiApiKey.isBlank()) {
+            _aiStatus.value = "Chave Ausente"
+            return
+        }
+        _aiStatus.value = "Pesquisando $ticker..."
+        viewModelScope.launch {
+            try {
+                val asset = db.getAsset(ticker) ?: return@launch
+                
+                // 1. LIMPEZA OBRIGATÓRIA: Apaga a anterior no banco e na tela
+                val reset = when(asset) {
+                    is AssetData.Stock -> asset.copy(marketScore = 0.0)
+                    is AssetData.Fii -> asset.copy(marketScore = 0.0)
+                    is AssetData.Etf -> asset.copy(marketScore = 0.0)
+                    is AssetData.Bdr -> asset.copy(marketScore = 0.0)
+                }
+                db.saveAsset(reset)
+                loadAllAssets()
+
+                // Prompt de Sucesso Comprovado pelo Usuário
+                val prompt = "Pode fazer uma avaliação com notas de 0 a 10, na avaliação do mercado financeiro para o ativo ${asset.ticker} (${asset.name}), responder na forma de uma tabela, somente com as colunas 'Ticker' e 'Nota' e sem nenhum outro comentário?"
+                
+                val response = ai.ask("GLOBAL", prompt, geminiApiKey)
+                
+                if (response.startsWith("Erro:")) {
+                    _aiStatus.value = "Erro na IA (Cota)"
+                    return@launch
+                }
+
+                // 2. EXTRAÇÃO TÉCNICA: Identifica o ticker na tabela e captura apenas a nota decimal
+                val regex = Regex("\\b${asset.ticker}\\b.*?(\\d+([.,]\\d+)?)")
+                val match = regex.find(response)
+                val score = match?.groupValues?.get(1)?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
+                
+                if (score in 0.1..10.0) {
+                    val updated = when(asset) {
+                        is AssetData.Stock -> asset.copy(marketScore = score)
+                        is AssetData.Fii -> asset.copy(marketScore = score)
+                        is AssetData.Etf -> asset.copy(marketScore = score)
+                        is AssetData.Bdr -> asset.copy(marketScore = score)
+                    }
+                    db.saveAsset(updated)
+                    loadAllAssets()
+                    _aiStatus.value = "Pronto"
+                } else {
+                    _aiStatus.value = "Nota Recusada pela IA"
+                }
+            } catch (e: Exception) {
+                _aiStatus.value = "Erro na Pesquisa"
+            }
+        }
+    }
+
     fun researchAllMarketScores() {
         if (geminiApiKey.isBlank()) {
             _aiStatus.value = "Chave Ausente"
             return
         }
-        _aiStatus.value = "Pesquisando Tudo..."
+        _aiStatus.value = "Iniciando Varredura..."
         viewModelScope.launch {
-            val list = allAssets.value
-            list.forEachIndexed { index, asset ->
-                _aiStatus.value = "Pesquisando ${index + 1}/${list.size}..."
-                try {
-                    val prompt = "Pesquise na internet e atue como um analista sênior. Para o ativo ${asset.ticker}, forneça uma nota de 0.0 a 10.0 baseada no consenso atual do mercado e fundamentos. Responda APENAS o número decimal (ex: 7.5)."
-                    val response = ai.ask(asset.ticker, prompt, geminiApiKey)
+            try {
+                val fullList = db.getAllAssets()
+                if (fullList.isEmpty()) return@launch
+                
+                // Limpeza Global Inicial Obrigatória
+                fullList.forEach { a ->
+                    val r = when(a) {
+                        is AssetData.Stock -> a.copy(marketScore = 0.0)
+                        is AssetData.Fii -> a.copy(marketScore = 0.0)
+                        is AssetData.Etf -> a.copy(marketScore = 0.0)
+                        is AssetData.Bdr -> a.copy(marketScore = 0.0)
+                    }
+                    db.saveAsset(r)
+                }
+                loadAllAssets()
+
+                // Lotes menores (5 ativos) para garantir a integridade da tabela solicitada
+                val chunks = fullList.chunked(5)
+                chunks.forEachIndexed { idx, chunk ->
+                    _aiStatus.value = "Pesquisando lote ${idx + 1}/${chunks.size}..."
+                    
+                    val tickers = chunk.joinToString(", ") { it.ticker }
+                    val prompt = "Pode fazer uma avaliação com notas de 0 a 10, na avaliação do mercado financeiro para os ativos $tickers, responder na forma de uma tabela, somente com as colunas 'Ticker' e 'Nota' e sem nenhum outro comentário?"
+
+                    val response = ai.ask("GLOBAL", prompt, geminiApiKey)
                     
                     if (!response.startsWith("Erro:")) {
-                        // Regex para extrair o primeiro número decimal (ex: 7.5 ou 7,5 ou 7)
-                        val regex = Regex("(\\d+([.,]\\d+)?)")
-                        val match = regex.find(response.replace(" ", ""))
-                        val score = match?.value?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
-                        
-                        if (score in 0.1..10.0) {
-                            val updated = when(asset) {
-                                is AssetData.Stock -> asset.copy(marketScore = score)
-                                is AssetData.Fii -> asset.copy(marketScore = score)
-                                is AssetData.Etf -> asset.copy(marketScore = score)
-                                is AssetData.Bdr -> asset.copy(marketScore = score)
+                        chunk.forEach { a ->
+                            val p = "\\b${a.ticker}\\b.*?(\\d+([.,]\\d+)?)"
+                            val regex = Regex(p, RegexOption.IGNORE_CASE)
+                            val m = regex.find(response)
+                            val s = m?.groupValues?.get(1)?.replace(",", ".")?.toDoubleOrNull() ?: 0.0
+                            
+                            if (s in 0.1..10.0) {
+                                val up = when(a) {
+                                    is AssetData.Stock -> a.copy(marketScore = s)
+                                    is AssetData.Fii -> a.copy(marketScore = s)
+                                    is AssetData.Etf -> a.copy(marketScore = s)
+                                    is AssetData.Bdr -> a.copy(marketScore = s)
+                                }
+                                db.saveAsset(up)
                             }
-                            db.saveAsset(updated)
                         }
+                        // Recarrega lote por lote para feedback visual real
+                        loadAllAssets()
                     }
-                    // Pequeno delay para respeitar limites da API gratuita e evitar Erro 429
-                    kotlinx.coroutines.delay(1000)
-                } catch (e: Exception) {
-                    // Continua para o próximo mesmo em caso de erro individual
+                    kotlinx.coroutines.delay(2000)
                 }
+                _aiStatus.value = "Varredura Concluída"
+            } catch (e: Exception) {
+                _aiStatus.value = "Erro na Varredura"
             }
-            loadAllAssets()
-            _aiStatus.value = "Pesquisa Concluída"
         }
     }
 
@@ -432,7 +521,7 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
             return data.userScore
         }
         
-        if (data.userScoreAverage) {
+        if (data.userScoreAverage && data.userScore > 0) {
             val scores = mutableListOf<Double>()
             scores.add(rawScore)
             if (data.userScore > 0) scores.add(data.userScore)
