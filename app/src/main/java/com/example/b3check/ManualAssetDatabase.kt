@@ -50,44 +50,13 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
     }
 
     private fun safeAsset(it: AssetData): AssetData {
-        val sources = it.fieldSources ?: emptyMap()
-        val lastUpd = it.lastUpdated
-        val insights = it.qualitativeInsights ?: emptyMap()
-        val asset = when(it) {
-            is AssetData.Stock -> it.copy(
-                sector = it.sector ?: "", subSector = it.subSector ?: "",
-                userScore = it.userScore, marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage,
-                isInert = it.isInert,
-                netEquity = it.netEquity
-            )
-            is AssetData.Fii -> it.copy(
-                sector = it.sector ?: "", subSector = it.subSector ?: "",
-                userScore = it.userScore, marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage,
-                isInert = it.isInert
-            )
-            is AssetData.Etf -> it.copy(
-                sector = it.sector ?: "ETF", subSector = it.subSector ?: "ETF",
-                userScore = it.userScore, marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage,
-                isInert = it.isInert
-            )
-            is AssetData.Bdr -> it.copy(
-                sector = it.sector ?: "BDR", subSector = it.subSector ?: "BDR",
-                userScore = it.userScore, marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage,
-                isInert = it.isInert
-            )
-        }
-        asset.fieldSources = sources
-        asset.lastUpdated = lastUpd
-        asset.qualitativeInsights = insights
-        return asset
+        // Garantindo que as listas e mapas não sejam nulos após a desserialização do Gson
+        if (it.pros == null) it.pros = emptyList()
+        if (it.cons == null) it.cons = emptyList()
+        if (it.neutros == null) it.neutros = emptyList()
+        if (it.fieldSources == null) it.fieldSources = emptyMap()
+        if (it.qualitativeInsights == null) it.qualitativeInsights = emptyMap()
+        return it
     }
 
     override fun saveAsset(asset: AssetData) {
@@ -183,7 +152,8 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
                     
                     if (imported != null) {
                         val local = getAsset(imported.ticker)
-                        if (local == null || imported.lastUpdated > local.lastUpdated) {
+                        // Na importação de backup, somos mais permissivos para garantir a sincronia
+                        if (local == null || imported.lastUpdated >= local.lastUpdated) {
                             saveAsset(imported)
                         }
                     }
@@ -196,5 +166,30 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
         } catch (e: Exception) {
             false
         }
+    }
+
+    private fun importBackupLegacy(json: String): Boolean {
+        return try {
+            val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+            val data: List<Map<String, String>> = gson.fromJson(json, typeToken)
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                data.forEach { item ->
+                    val type = item["type"]
+                    val jsonData = item["json"]
+                    val imported = when (type) {
+                        "STOCK" -> gson.fromJson(jsonData, AssetData.Stock::class.java)
+                        "FII" -> gson.fromJson(jsonData, AssetData.Fii::class.java)
+                        "ETF" -> gson.fromJson(jsonData, AssetData.Etf::class.java)
+                        "BDR" -> gson.fromJson(jsonData, AssetData.Bdr::class.java)
+                        else -> null
+                    }
+                    if (imported != null) saveAsset(imported)
+                }
+                db.setTransactionSuccessful()
+                true
+            } finally { db.endTransaction() }
+        } catch (e: Exception) { false }
     }
 }

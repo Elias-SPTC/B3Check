@@ -62,59 +62,13 @@ class DesktopDataSource : AssetDataSource {
     }
 
     private fun safeAsset(it: AssetData): AssetData {
-        val asset = when(it) {
-            is AssetData.Stock -> it.copy(
-                sector = it.sector ?: "", 
-                subSector = it.subSector ?: "",
-                valuationSource = it.valuationSource ?: "",
-                isInPortfolio = it.isInPortfolio,
-                isInert = it.isInert,
-                userScore = it.userScore,
-                marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage,
-                netEquity = it.netEquity
-            )
-            is AssetData.Fii -> it.copy(
-                sector = it.sector ?: "", 
-                subSector = it.subSector ?: "",
-                managementType = it.managementType ?: "Ativa",
-                fundType = it.fundType ?: "Tijolo",
-                isInPortfolio = it.isInPortfolio,
-                isInert = it.isInert,
-                userScore = it.userScore,
-                marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage
-            )
-            is AssetData.Etf -> it.copy(
-                sector = it.sector ?: "ETF", 
-                subSector = it.subSector ?: "ETF",
-                isInPortfolio = it.isInPortfolio,
-                isInert = it.isInert,
-                userScore = it.userScore,
-                marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage
-            )
-            is AssetData.Bdr -> it.copy(
-                sector = it.sector ?: "BDR", 
-                subSector = it.subSector ?: "BDR",
-                parity = it.parity ?: "1:1",
-                isInPortfolio = it.isInPortfolio,
-                isInert = it.isInert,
-                userScore = it.userScore,
-                marketScore = it.marketScore,
-                userScorePriority = it.userScorePriority,
-                userScoreAverage = it.userScoreAverage
-            )
-        }
-        asset.pros = it.pros ?: emptyList()
-        asset.cons = it.cons ?: emptyList()
-        asset.fieldSources = it.fieldSources ?: emptyMap()
-        asset.lastUpdated = it.lastUpdated
-        asset.qualitativeInsights = it.qualitativeInsights ?: emptyMap()
-        return asset
+        // Garantindo integridade após desserialização sem perda de campos var
+        if (it.pros == null) it.pros = emptyList()
+        if (it.cons == null) it.cons = emptyList()
+        if (it.neutros == null) it.neutros = emptyList()
+        if (it.fieldSources == null) it.fieldSources = emptyMap()
+        if (it.qualitativeInsights == null) it.qualitativeInsights = emptyMap()
+        return it
     }
 
     override fun saveAsset(asset: AssetData) {
@@ -215,8 +169,8 @@ class DesktopDataSource : AssetDataSource {
                     changed = true
                 } else {
                     val local = localAssets[localIndex]
-                    // Mesclagem Granular: Só substitui se o importado for mais recente
-                    if (imported.lastUpdated > local.lastUpdated) {
+                    // Na importação de backup, somos mais permissivos para garantir a sincronia total
+                    if (imported.lastUpdated >= local.lastUpdated) {
                         localAssets[localIndex] = imported
                         changed = true
                     }
