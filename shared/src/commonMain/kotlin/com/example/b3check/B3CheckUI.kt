@@ -48,7 +48,7 @@ fun MainContainer(
     var currentTab by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().imePadding(),
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(

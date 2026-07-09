@@ -1,8 +1,6 @@
 <component name="ArtifactManager">
   <artifact type="jar" name="B3Check">
     <output-path>$PROJECT_DIR$/desktop/build/libs</output-path>
-    <root id="archive" name="B3Check.jar">
-      <element id="module-output" name="B3Check.desktop.desktopMain" />
-    </root>
+    <root id="archive" name="B3Check.jar" />
   </artifact>
 </component>

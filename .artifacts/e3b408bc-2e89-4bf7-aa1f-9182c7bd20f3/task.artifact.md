@@ -1,0 +1,2 @@
+- [x] Add `Modifier.imePadding()` to `Scaffold` in `B3CheckUI.kt`
+- [x] Verify the change
