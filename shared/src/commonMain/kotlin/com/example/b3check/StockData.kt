@@ -23,6 +23,16 @@ sealed class AssetData {
     var lastUpdated: Long = 0L
     var qualitativeInsights: Map<String, String> = emptyMap()
 
+    fun updateMetadataFrom(other: AssetData) {
+        this.pros = other.pros
+        this.cons = other.cons
+        this.neutros = other.neutros
+        this.mockedFields = other.mockedFields
+        this.fieldSources = other.fieldSources
+        this.lastUpdated = other.lastUpdated
+        this.qualitativeInsights = other.qualitativeInsights
+    }
+
     data class Stock(
         override val ticker: String,
         override val name: String,

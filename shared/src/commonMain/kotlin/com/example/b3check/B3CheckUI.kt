@@ -174,9 +174,32 @@ fun AssetListScreen(
     var showRecalcSuccess by rememberSaveable { mutableStateOf(false) }
     var showImportSuccess by rememberSaveable { mutableStateOf(false) }
     var showExportSuccess by rememberSaveable { mutableStateOf(false) }
+    var importDataPending by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadAllAssets()
+    }
+
+    if (importDataPending != null) {
+        AlertDialog(
+            onDismissRequest = { importDataPending = null },
+            title = { Text("Importar Dados", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Deseja mesclar os dados (mantendo as versões mais recentes) ou restaurar completamente (substituir tudo pelo backup)?", color = MaterialTheme.colorScheme.onSurface) },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.importBackup(importDataPending!!, force = true)
+                    importDataPending = null
+                    showImportSuccess = true
+                }) { Text("Restaurar Tudo") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.importBackup(importDataPending!!, force = false)
+                    importDataPending = null
+                    showImportSuccess = true
+                }) { Text("Mesclar") }
+            }
+        )
     }
 
     if (tickerToDelete != null) {
@@ -256,7 +279,7 @@ fun AssetListScreen(
                 }
             }
             Row {
-                IconButton(onClick = { onImport { viewModel.importBackup(it); showImportSuccess = true } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
+                IconButton(onClick = { onImport { importDataPending = it } }) { Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.onSurface) }
                 IconButton(onClick = { viewModel.researchAllMarketScores() }) { Icon(Icons.Default.Public, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { showIntegrityReport = true }) { Icon(Icons.Default.List, null, tint = Color(0xFFE65100)) }
                 IconButton(onClick = { viewModel.recalculateAllScores(); showRecalcSuccess = true }) { Icon(Icons.Default.Science, null, tint = MaterialTheme.colorScheme.primary) }
@@ -411,6 +434,7 @@ fun InvestScreen(viewModel: StockViewModel) {
     val allocation by viewModel.portfolioAllocation.collectAsState()
     val portfolio = remember(assets) { assets.filter { it.isInPortfolio }.sortedBy { it.ticker } }
     var investAmountStr by rememberSaveable { mutableStateOf("") }
+    var showLots by rememberSaveable { mutableStateOf(false) }
     val editStates = remember { mutableStateMapOf<String, String>() }
     val selectedTickers = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -460,6 +484,26 @@ fun InvestScreen(viewModel: StockViewModel) {
         sharesToBuy to investSuggestions
     }
 
+    val lotSuggestions = remember(suggestions, portfolio) {
+        val sharesToBuy = mutableMapOf<String, Int>()
+        val investSuggestions = mutableMapOf<String, Double>()
+        
+        suggestions.first.forEach { (ticker, qty) ->
+            val asset = portfolio.find { it.ticker == ticker }
+            val roundedQty = if (asset is AssetData.Stock) {
+                ((qty + 50) / 100) * 100
+            } else {
+                qty
+            }
+            
+            if (roundedQty > 0) {
+                sharesToBuy[ticker] = roundedQty
+                investSuggestions[ticker] = roundedQty * (asset?.currentPrice ?: 0.0)
+            }
+        }
+        sharesToBuy to investSuggestions
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Simulador de Aportes", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
         Spacer(modifier = Modifier.height(16.dp))
@@ -470,11 +514,15 @@ fun InvestScreen(viewModel: StockViewModel) {
                 onCheckedChange = { isChecked -> portfolio.forEach { selectedTickers[it.ticker] = isChecked } },
                 modifier = Modifier.size(32.dp).padding(end = 4.dp)
             )
-            Text("Ticker", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
-            Text("Cotas", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            Text("Preço", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            Text("Montante", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            Text("Sugestão", modifier = Modifier.weight(1.4f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Ticker", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+            Text("Cotas", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Preço", modifier = Modifier.weight(0.9f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            Text("Montante", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            
+            Row(modifier = Modifier.weight(1.4f).clickable { showLots = !showLots }, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                Text(if (showLots) "Lotes" else "Unidades", fontWeight = FontWeight.Black, fontSize = 10.sp, textAlign = TextAlign.End, color = if (showLots) Color(0xFF1976D2) else Color(0xFF2E7D32))
+                Icon(Icons.Default.SwapHoriz, null, modifier = Modifier.size(12.dp).padding(start = 2.dp), tint = MaterialTheme.colorScheme.primary)
+            }
         }
         
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
@@ -483,6 +531,9 @@ fun InvestScreen(viewModel: StockViewModel) {
             itemsIndexed(portfolio) { index, asset ->
                 val qtySuggest = suggestions.first[asset.ticker] ?: 0
                 val montanteSug = suggestions.second[asset.ticker] ?: 0.0
+                val qtyLotSuggest = lotSuggestions.first[asset.ticker] ?: 0
+                val montanteLotSug = lotSuggestions.second[asset.ticker] ?: 0.0
+
                 val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
                 val montanteAtual = asset.sharesCount * asset.currentPrice
                 
@@ -492,7 +543,7 @@ fun InvestScreen(viewModel: StockViewModel) {
                         onCheckedChange = { selectedTickers[asset.ticker] = it },
                         modifier = Modifier.size(32.dp).padding(end = 4.dp)
                     )
-                    Text(asset.ticker, modifier = Modifier.weight(1.1f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(asset.ticker, modifier = Modifier.weight(1.0f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     
                     BasicTextField(
                         value = editStates["${asset.ticker}_c"] ?: formatBR(asset.sharesCount, true),
@@ -507,7 +558,7 @@ fun InvestScreen(viewModel: StockViewModel) {
                             }
                             viewModel.saveManualAsset(updated)
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1.1f),
                         textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
@@ -525,14 +576,14 @@ fun InvestScreen(viewModel: StockViewModel) {
                             }
                             viewModel.saveManualAsset(updated)
                         },
-                        modifier = Modifier.weight(1.1f),
+                        modifier = Modifier.weight(0.9f),
                         textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
 
                     Text(
                         text = formatBR(montanteAtual),
-                        modifier = Modifier.weight(1.3f),
+                        modifier = Modifier.weight(1.2f),
                         textAlign = TextAlign.End,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -540,39 +591,57 @@ fun InvestScreen(viewModel: StockViewModel) {
                     )
 
                     Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
-                        if (qtySuggest > 0) { 
-                            Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            if (qtySuggest >= 100 && asset is AssetData.Stock) {
-                                val lots = qtySuggest / 100
-                                val rem = qtySuggest % 100
-                                Text("${lots} lotes" + (if(rem>0) " + $rem" else ""), fontSize = 10.sp, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold)
-                            }
-                            Text(formatBR(montanteSug), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
-                        } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        if (!showLots) {
+                            if (qtySuggest > 0) { 
+                                Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(formatBR(montanteSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
+                            } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        } else {
+                            if (qtyLotSuggest > 0) {
+                                val label = if (asset is AssetData.Stock) {
+                                    val lots = qtyLotSuggest / 100
+                                    "${lots} lot" + (if(lots>1) "es" else "e")
+                                } else "${qtyLotSuggest} un"
+                                
+                                Text(label, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(formatBR(montanteLotSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                        }
                     }
                 }
             }
-            
-            item {
-                val totalCurrentVal = portfolio.sumOf { it.sharesCount * it.currentPrice }
-                val totalSugVal = suggestions.second.values.sum()
-                val totalSugQty = suggestions.first.values.sum()
+        }
+
+        val totalCurrentVal = portfolio.sumOf { it.sharesCount * it.currentPrice }
+        val totalSugVal = suggestions.second.values.sum()
+        val totalSugQty = suggestions.first.values.sum()
+        val totalLotSugVal = lotSuggestions.second.values.sum()
+        val totalLotSugQty = lotSuggestions.first.values.sum()
+
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.width(32.dp).padding(end = 4.dp))
+                Text("TOTAIS", modifier = Modifier.weight(3.0f), fontWeight = FontWeight.Black, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
                 
-                Spacer(Modifier.height(8.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(Modifier.width(32.dp).padding(end = 4.dp))
-                        Text("TOTAIS", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Black, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text("", modifier = Modifier.weight(1f))
-                        Text("", modifier = Modifier.weight(1.1f))
-                        Text(formatBR(totalCurrentVal), modifier = Modifier.weight(1.3f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
-                            Text("${totalSugQty} un", fontWeight = FontWeight.Black, fontSize = 12.sp, color = Color(0xFF2E7D32))
-                            Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
-                        }
+                Text(
+                    text = formatBR(totalCurrentVal), 
+                    modifier = Modifier.weight(1.2f), 
+                    textAlign = TextAlign.End, 
+                    fontWeight = FontWeight.Bold, 
+                    fontSize = 11.sp, 
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
+                    if (!showLots) {
+                        Text("${totalSugQty} un", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF2E7D32))
+                        Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                    } else {
+                        Text("${totalLotSugQty} un", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF1976D2))
+                        Text(formatBR(totalLotSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -591,9 +660,17 @@ fun InvestScreen(viewModel: StockViewModel) {
         )
         if (investAmount > 0) {
             val realInvested = suggestions.second.values.sum()
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Total Sugerido: R$ ${formatBR(realInvested)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                Text("Sobras: R$ ${formatBR(investAmount - realInvested)}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+            val realLotInvested = lotSuggestions.second.values.sum()
+            
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Unidades: R$ ${formatBR(realInvested)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                    Text("Sobras: R$ ${formatBR(investAmount - realInvested)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Total Lotes: R$ ${formatBR(realLotInvested)}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1976D2))
+                    Text("Sobras: R$ ${formatBR(investAmount - realLotInvested)}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))

@@ -1,2 +1,6 @@
-- [x] Add `Modifier.imePadding()` to `Scaffold` in `B3CheckUI.kt`
-- [x] Verify the change
+- [ ] Add `showLots` state to `InvestScreen`
+- [ ] Implement toggleable header for Suggestion column
+- [ ] Rebalance column weights for 5-column layout
+- [ ] Merge "Unidades" and "Lotes" into a single column in the grid
+- [ ] Update Totals row to respect the toggle
+- [ ] Verify layout on Android (no line breaks) and Desktop

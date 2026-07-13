@@ -141,7 +141,7 @@ class DesktopDataSource : AssetDataSource {
         settingsFile.writeText(value.trim())
     }
 
-    override fun importBackup(json: String): Boolean {
+    override fun importBackup(json: String, force: Boolean): Boolean {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
             val importedData: List<Map<String, String>> = gson.fromJson(json, typeToken)
@@ -159,6 +159,11 @@ class DesktopDataSource : AssetDataSource {
                 asset?.let { safeAsset(it) }
             }
             
+            if (force) {
+                saveAll(importedAssets)
+                return true
+            }
+
             val localAssets = getAllAssets().toMutableList()
             var changed = false
             

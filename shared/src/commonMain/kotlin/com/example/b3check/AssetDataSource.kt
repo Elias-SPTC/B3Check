@@ -9,7 +9,7 @@ interface AssetDataSource {
     fun deleteAsset(ticker: String)
     fun getAllAssets(): List<AssetData>
     fun exportBackup(): String
-    fun importBackup(json: String): Boolean
+    fun importBackup(json: String, force: Boolean = false): Boolean
     fun getSettings(key: String): String
     fun saveSettings(key: String, value: String)
 }

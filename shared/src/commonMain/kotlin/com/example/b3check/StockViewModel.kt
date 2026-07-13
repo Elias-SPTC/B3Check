@@ -192,10 +192,16 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
     }
 
     fun saveManualAsset(data: AssetData) {
-        val sanitized = sanitizeAsset(data)
-        sanitized.lastUpdated = System.currentTimeMillis()
-        val score = calculateScoreForAsset(sanitized)
         viewModelScope.launch {
+            val existing = db.getAsset(data.ticker)
+            val sanitized = sanitizeAsset(data)
+            
+            // Preserva metadados se já existirem no banco
+            existing?.let { sanitized.updateMetadataFrom(it) }
+            
+            sanitized.lastUpdated = System.currentTimeMillis()
+            val score = calculateScoreForAsset(sanitized)
+            
             db.saveAsset(sanitized)
             loadAllAssets()
             if ((_uiState.value as? StockUiState.Success)?.data?.ticker == sanitized.ticker) {
@@ -337,6 +343,8 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                         is AssetData.Etf -> asset.copy(marketScore = score)
                         is AssetData.Bdr -> asset.copy(marketScore = score)
                     }
+                    updated.updateMetadataFrom(asset)
+                    updated.lastUpdated = System.currentTimeMillis()
                     db.saveAsset(updated)
                     loadAllAssets()
                     _aiStatus.value = "Pronto"
@@ -396,6 +404,8 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
                                     is AssetData.Etf -> a.copy(marketScore = s)
                                     is AssetData.Bdr -> a.copy(marketScore = s)
                                 }
+                                up.updateMetadataFrom(a)
+                                up.lastUpdated = System.currentTimeMillis()
                                 db.saveAsset(up)
                             }
                         }
@@ -543,14 +553,17 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
     }
 
     fun recalculateAllScores() {
+        _aiStatus.value = "Recalculando..."
         viewModelScope.launch {
             val list = db.getAllAssets()
             list.forEach { asset ->
                 val sanitized = sanitizeAsset(asset)
                 calculateScoreForAsset(sanitized)
+                sanitized.lastUpdated = System.currentTimeMillis()
                 db.saveAsset(sanitized) 
             }
             loadAllAssets()
+            _aiStatus.value = "Pronto"
         }
     }
 
@@ -558,7 +571,11 @@ class StockViewModel(private val db: AssetDataSource) : ViewModel() {
         val json = db.exportBackup()
         return json.ifBlank { "{}" }
     }
-    fun importBackup(j: String) { viewModelScope.launch { if (db.importBackup(j)) loadAllAssets() } }
+    fun importBackup(j: String, force: Boolean = false) { 
+        viewModelScope.launch { 
+            if (db.importBackup(j, force)) loadAllAssets() 
+        } 
+    }
 
     fun getCurrentDate(): String {
         return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())

@@ -132,13 +132,16 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
         return gson.toJson(backupList)
     }
 
-    override fun importBackup(json: String): Boolean {
+    override fun importBackup(json: String, force: Boolean): Boolean {
         return try {
             val typeToken = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
             val data: List<Map<String, String>> = gson.fromJson(json, typeToken)
             val db = writableDatabase
             db.beginTransaction()
             try {
+                if (force) {
+                    db.delete("assets", null, null)
+                }
                 data.forEach { item ->
                     val type = item["type"]
                     val jsonData = item["json"]
@@ -151,10 +154,13 @@ class ManualAssetDatabase(context: Context) : SQLiteOpenHelper(context, "assets.
                     }
                     
                     if (imported != null) {
-                        val local = getAsset(imported.ticker)
-                        // Na importação de backup, somos mais permissivos para garantir a sincronia
-                        if (local == null || imported.lastUpdated >= local.lastUpdated) {
+                        if (force) {
                             saveAsset(imported)
+                        } else {
+                            val local = getAsset(imported.ticker)
+                            if (local == null || imported.lastUpdated >= local.lastUpdated) {
+                                saveAsset(imported)
+                            }
                         }
                     }
                 }
