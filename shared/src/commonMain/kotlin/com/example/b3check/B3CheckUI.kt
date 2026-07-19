@@ -46,6 +46,9 @@ fun MainContainer(
     )
 
     var currentTab by rememberSaveable { mutableIntStateOf(0) }
+    val filterOptions = listOf("Todos", "Ações", "FII", "ETF", "BDR")
+    var selectedFilterIndex by rememberSaveable { mutableIntStateOf(0) }
+    val currentFilter = filterOptions[selectedFilterIndex]
 
     Scaffold(
         modifier = Modifier.fillMaxSize().imePadding(),
@@ -90,14 +93,34 @@ fun MainContainer(
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
-            when (currentTab) {
-                0 -> StockAnalysisScreen(viewModel)
-                1 -> AssetListScreen(viewModel, onAssetClick = { currentTab = 0 }, onExport, onImport)
-                2 -> PortfolioBalanceScreen(viewModel)
-                3 -> RecommendationsScreen(viewModel)
-                4 -> InvestScreen(viewModel)
-                5 -> GlobalAiScreen(viewModel, onExport)
+        Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            if (currentTab in 1..4) {
+                ScrollableTabRow(
+                    selectedTabIndex = selectedFilterIndex,
+                    edgePadding = 16.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    divider = {}
+                ) {
+                    filterOptions.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedFilterIndex == index,
+                            onClick = { selectedFilterIndex = index },
+                            text = { Text(title, fontSize = 12.sp, fontWeight = if (selectedFilterIndex == index) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+                }
+            }
+            
+            Box(modifier = Modifier.weight(1f)) {
+                when (currentTab) {
+                    0 -> StockAnalysisScreen(viewModel)
+                    1 -> AssetListScreen(viewModel, onAssetClick = { currentTab = 0 }, onExport, onImport, currentFilter)
+                    2 -> PortfolioBalanceScreen(viewModel, currentFilter)
+                    3 -> RecommendationsScreen(viewModel, currentFilter)
+                    4 -> InvestScreen(viewModel, currentFilter)
+                    5 -> GlobalAiScreen(viewModel, onExport)
+                }
             }
         }
     }
@@ -165,9 +188,22 @@ fun AssetListScreen(
     viewModel: StockViewModel, 
     onAssetClick: () -> Unit = {},
     onExport: (String, String) -> Unit = { _, _ -> },
-    onImport: (onResult: (String) -> Unit) -> Unit = {}
+    onImport: (onResult: (String) -> Unit) -> Unit = {},
+    currentFilter: String = "Todos"
 ) {
     val assets by viewModel.allAssets.collectAsState()
+    val filteredAssets = remember(assets, currentFilter) {
+        if (currentFilter == "Todos") assets
+        else assets.filter { asset ->
+            when (currentFilter) {
+                "Ações" -> asset is AssetData.Stock
+                "FII" -> asset is AssetData.Fii
+                "ETF" -> asset is AssetData.Etf
+                "BDR" -> asset is AssetData.Bdr
+                else -> true
+            }
+        }
+    }
     val status by viewModel.aiStatus.collectAsState()
     var tickerToDelete by rememberSaveable { mutableStateOf<String?>(null) }
     var showIntegrityReport by rememberSaveable { mutableStateOf(false) }
@@ -288,7 +324,7 @@ fun AssetListScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn {
-            items(assets) { asset ->
+            items(filteredAssets) { asset ->
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp).clickable { viewModel.lookupTicker(asset.ticker); onAssetClick() },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -349,11 +385,24 @@ fun AssetListScreen(
 }
 
 @Composable
-fun PortfolioBalanceScreen(viewModel: StockViewModel) {
+fun PortfolioBalanceScreen(viewModel: StockViewModel, currentFilter: String = "Todos") {
     val allocation by viewModel.portfolioAllocation.collectAsState()
     val allAssets by viewModel.allAssets.collectAsState()
     val portfolio = remember(allAssets) { allAssets.filter { it.isInPortfolio } }
     val totalVal = remember(portfolio) { portfolio.sumOf { it.sharesCount * it.currentPrice } }
+
+    val filteredAllocation = remember(allocation, currentFilter) {
+        if (currentFilter == "Todos") allocation
+        else allocation.filter { (asset, _) ->
+            when (currentFilter) {
+                "Ações" -> asset is AssetData.Stock
+                "FII" -> asset is AssetData.Fii
+                "ETF" -> asset is AssetData.Etf
+                "BDR" -> asset is AssetData.Bdr
+                else -> true
+            }
+        }
+    }
 
     val equilibriumAmount = remember(portfolio, allocation) {
         if (totalVal == 0.0 || allocation.isEmpty()) return@remember 0.0
@@ -370,7 +419,7 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
         Text("Equilíbrio da Carteira", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
         Spacer(modifier = Modifier.height(16.dp))
-        allocation.forEach { (asset, ideal) ->
+        filteredAllocation.forEach { (asset, ideal) ->
             val curVal = asset.sharesCount * asset.currentPrice
             val curPerc = if (totalVal > 0) (curVal / totalVal) * 100.0 else 0.0
             val curColor = if (curPerc < ideal) Color.Red else MaterialTheme.colorScheme.onSurface
@@ -429,12 +478,25 @@ fun PortfolioBalanceScreen(viewModel: StockViewModel) {
 }
 
 @Composable
-fun InvestScreen(viewModel: StockViewModel) {
+fun InvestScreen(viewModel: StockViewModel, currentFilter: String = "Todos") {
     val assets by viewModel.allAssets.collectAsState()
     val allocation by viewModel.portfolioAllocation.collectAsState()
-    val portfolio = remember(assets) { assets.filter { it.isInPortfolio }.sortedBy { it.ticker } }
+    val portfolio = remember(assets, currentFilter) { 
+        val p = assets.filter { it.isInPortfolio }
+        if (currentFilter == "Todos") p.sortedBy { it.ticker }
+        else p.filter { asset ->
+            when (currentFilter) {
+                "Ações" -> asset is AssetData.Stock
+                "FII" -> asset is AssetData.Fii
+                "ETF" -> asset is AssetData.Etf
+                "BDR" -> asset is AssetData.Bdr
+                else -> true
+            }
+        }.sortedBy { it.ticker }
+    }
     var investAmountStr by rememberSaveable { mutableStateOf("") }
     var showLots by rememberSaveable { mutableStateOf(false) }
+    var isEditMode by rememberSaveable { mutableStateOf(false) }
     val editStates = remember { mutableStateMapOf<String, String>() }
     val selectedTickers = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -505,107 +567,172 @@ fun InvestScreen(viewModel: StockViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Simulador de Aportes", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = portfolio.isNotEmpty() && selectedPortfolio.size == portfolio.size,
-                onCheckedChange = { isChecked -> portfolio.forEach { selectedTickers[it.ticker] = isChecked } },
-                modifier = Modifier.size(32.dp).padding(end = 4.dp)
-            )
-            Text("Ticker", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
-            Text("Cotas", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            Text("Preço", modifier = Modifier.weight(0.9f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            Text("Montante", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
-            
-            Row(modifier = Modifier.weight(1.4f).clickable { showLots = !showLots }, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                Text(if (showLots) "Lotes" else "Unidades", fontWeight = FontWeight.Black, fontSize = 10.sp, textAlign = TextAlign.End, color = if (showLots) Color(0xFF1976D2) else Color(0xFF2E7D32))
-                Icon(Icons.Default.SwapHoriz, null, modifier = Modifier.size(12.dp).padding(start = 2.dp), tint = MaterialTheme.colorScheme.primary)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(if (isEditMode) "Edição Rápida" else "Simulador de Aportes", style = MaterialTheme.typography.titleLarge, color = Color(0xFF1976D2))
+            IconButton(onClick = { isEditMode = !isEditMode }) {
+                Icon(if (isEditMode) Icons.Default.CheckCircle else Icons.Default.Edit, contentDescription = null, tint = Color(0xFF1976D2))
             }
         }
+        Spacer(modifier = Modifier.height(16.dp))
         
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
+        if (isEditMode) {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Ticker", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text("Cotas", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+                Text("Preço", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(portfolio) { asset ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(asset.ticker, modifier = Modifier.weight(1f), fontSize = 18.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        
+                        BasicTextField(
+                            value = editStates["${asset.ticker}_c"] ?: formatBR(asset.sharesCount, true),
+                            onValueChange = { 
+                                editStates["${asset.ticker}_c"] = it
+                                val n = parseBR(it)
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(sharesCount = n)
+                                    is AssetData.Fii -> asset.copy(sharesCount = n)
+                                    is AssetData.Etf -> asset.copy(sharesCount = n)
+                                    is AssetData.Bdr -> asset.copy(sharesCount = n)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            },
+                            modifier = Modifier.weight(1.2f).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small).padding(horizontal = 8.dp),
+                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 18.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            decorationBox = { inner -> Box(contentAlignment = Alignment.CenterEnd) { inner() } }
+                        )
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            itemsIndexed(portfolio) { index, asset ->
-                val qtySuggest = suggestions.first[asset.ticker] ?: 0
-                val montanteSug = suggestions.second[asset.ticker] ?: 0.0
-                val qtyLotSuggest = lotSuggestions.first[asset.ticker] ?: 0
-                val montanteLotSug = lotSuggestions.second[asset.ticker] ?: 0.0
+                        Spacer(Modifier.width(8.dp))
 
-                val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
-                val montanteAtual = asset.sharesCount * asset.currentPrice
+                        BasicTextField(
+                            value = editStates["${asset.ticker}_p"] ?: formatBR(asset.currentPrice, true),
+                            onValueChange = { 
+                                editStates["${asset.ticker}_p"] = it
+                                val n = parseBR(it)
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(currentPrice = n)
+                                    is AssetData.Fii -> asset.copy(currentPrice = n)
+                                    is AssetData.Etf -> asset.copy(currentPrice = n)
+                                    is AssetData.Bdr -> asset.copy(currentPrice = n)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            },
+                            modifier = Modifier.weight(1.2f).height(40.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small).padding(horizontal = 8.dp),
+                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            decorationBox = { inner -> Box(contentAlignment = Alignment.CenterEnd) { inner() } }
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+                }
+            }
+            Button(onClick = { isEditMode = false }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Text("Concluir Edição")
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = portfolio.isNotEmpty() && selectedPortfolio.size == portfolio.size,
+                    onCheckedChange = { isChecked -> portfolio.forEach { selectedTickers[it.ticker] = isChecked } },
+                    modifier = Modifier.size(32.dp).padding(end = 4.dp)
+                )
+                Text("Ticker", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text("Cotas", modifier = Modifier.weight(1.1f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+                Text("Preço", modifier = Modifier.weight(0.9f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
+                Text("Montante", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 10.sp, textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurface)
                 
-                Row(modifier = Modifier.fillMaxWidth().background(rowBg).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = selectedTickers[asset.ticker] ?: false,
-                        onCheckedChange = { selectedTickers[asset.ticker] = it },
-                        modifier = Modifier.size(32.dp).padding(end = 4.dp)
-                    )
-                    Text(asset.ticker, modifier = Modifier.weight(1.0f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Row(modifier = Modifier.weight(1.4f).clickable { showLots = !showLots }, horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (showLots) "Lotes" else "Unidades", fontWeight = FontWeight.Black, fontSize = 10.sp, textAlign = TextAlign.End, color = if (showLots) Color(0xFF1976D2) else Color(0xFF2E7D32))
+                    Icon(Icons.Default.SwapHoriz, null, modifier = Modifier.size(12.dp).padding(start = 2.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurface)
+
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                itemsIndexed(portfolio) { index, asset ->
+                    val qtySuggest = suggestions.first[asset.ticker] ?: 0
+                    val montanteSug = suggestions.second[asset.ticker] ?: 0.0
+                    val qtyLotSuggest = lotSuggestions.first[asset.ticker] ?: 0
+                    val montanteLotSug = lotSuggestions.second[asset.ticker] ?: 0.0
+
+                    val rowBg = if (index % 2 != 0) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
+                    val montanteAtual = asset.sharesCount * asset.currentPrice
                     
-                    BasicTextField(
-                        value = editStates["${asset.ticker}_c"] ?: formatBR(asset.sharesCount, true),
-                        onValueChange = { 
-                            editStates["${asset.ticker}_c"] = it
-                            val n = parseBR(it)
-                            val updated = when(asset) {
-                                is AssetData.Stock -> asset.copy(sharesCount = n)
-                                is AssetData.Fii -> asset.copy(sharesCount = n)
-                                is AssetData.Etf -> asset.copy(sharesCount = n)
-                                is AssetData.Bdr -> asset.copy(sharesCount = n)
+                    Row(modifier = Modifier.fillMaxWidth().background(rowBg).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = selectedTickers[asset.ticker] ?: false,
+                            onCheckedChange = { selectedTickers[asset.ticker] = it },
+                            modifier = Modifier.size(32.dp).padding(end = 4.dp)
+                        )
+                        Text(asset.ticker, modifier = Modifier.weight(1.0f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        
+                        BasicTextField(
+                            value = editStates["${asset.ticker}_c"] ?: formatBR(asset.sharesCount, true),
+                            onValueChange = { 
+                                editStates["${asset.ticker}_c"] = it
+                                val n = parseBR(it)
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(sharesCount = n)
+                                    is AssetData.Fii -> asset.copy(sharesCount = n)
+                                    is AssetData.Etf -> asset.copy(sharesCount = n)
+                                    is AssetData.Bdr -> asset.copy(sharesCount = n)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            },
+                            modifier = Modifier.weight(1.1f),
+                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+
+                        BasicTextField(
+                            value = editStates["${asset.ticker}_p"] ?: formatBR(asset.currentPrice, true),
+                            onValueChange = { 
+                                editStates["${asset.ticker}_p"] = it
+                                val n = parseBR(it)
+                                val updated = when(asset) {
+                                    is AssetData.Stock -> asset.copy(currentPrice = n)
+                                    is AssetData.Fii -> asset.copy(currentPrice = n)
+                                    is AssetData.Etf -> asset.copy(currentPrice = n)
+                                    is AssetData.Bdr -> asset.copy(currentPrice = n)
+                                }
+                                viewModel.saveManualAsset(updated)
+                            },
+                            modifier = Modifier.weight(0.9f),
+                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        )
+
+                        Text(
+                            text = formatBR(montanteAtual),
+                            modifier = Modifier.weight(1.2f),
+                            textAlign = TextAlign.End,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        )
+
+                        Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
+                            if (!showLots) {
+                                if (qtySuggest > 0) { 
+                                    Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(formatBR(montanteSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
+                                } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
+                            } else {
+                                if (qtyLotSuggest > 0) {
+                                    val label = if (asset is AssetData.Stock) {
+                                        val lots = qtyLotSuggest / 100
+                                        "${lots} lot" + (if(lots>1) "es" else "e")
+                                    } else "${qtyLotSuggest} un"
+                                    
+                                    Text(label, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text(formatBR(montanteLotSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                                } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                             }
-                            viewModel.saveManualAsset(updated)
-                        },
-                        modifier = Modifier.weight(1.1f),
-                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                    )
-
-                    BasicTextField(
-                        value = editStates["${asset.ticker}_p"] ?: formatBR(asset.currentPrice, true),
-                        onValueChange = { 
-                            editStates["${asset.ticker}_p"] = it
-                            val n = parseBR(it)
-                            val updated = when(asset) {
-                                is AssetData.Stock -> asset.copy(currentPrice = n)
-                                is AssetData.Fii -> asset.copy(currentPrice = n)
-                                is AssetData.Etf -> asset.copy(currentPrice = n)
-                                is AssetData.Bdr -> asset.copy(currentPrice = n)
-                            }
-                            viewModel.saveManualAsset(updated)
-                        },
-                        modifier = Modifier.weight(0.9f),
-                        textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                    )
-
-                    Text(
-                        text = formatBR(montanteAtual),
-                        modifier = Modifier.weight(1.2f),
-                        textAlign = TextAlign.End,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
-                        if (!showLots) {
-                            if (qtySuggest > 0) { 
-                                Text("${qtySuggest} un", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text(formatBR(montanteSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium) 
-                            } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
-                        } else {
-                            if (qtyLotSuggest > 0) {
-                                val label = if (asset is AssetData.Stock) {
-                                    val lots = qtyLotSuggest / 100
-                                    "${lots} lot" + (if(lots>1) "es" else "e")
-                                } else "${qtyLotSuggest} un"
-                                
-                                Text(label, color = Color(0xFF1976D2), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text(formatBR(montanteLotSug), fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
-                            } else Text("-", color = MaterialTheme.colorScheme.onSurface, fontSize = 12.sp)
                         }
                     }
                 }
@@ -631,17 +758,17 @@ fun InvestScreen(viewModel: StockViewModel) {
                     modifier = Modifier.weight(1.2f), 
                     textAlign = TextAlign.End, 
                     fontWeight = FontWeight.Bold, 
-                    fontSize = 11.sp, 
+                    fontSize = 10.sp, 
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Column(modifier = Modifier.weight(1.4f), horizontalAlignment = Alignment.End) {
                     if (!showLots) {
-                        Text("${totalSugQty} un", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF2E7D32))
-                        Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${totalSugQty} un", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color(0xFF2E7D32))
+                        Text(formatBR(totalSugVal), fontWeight = FontWeight.Bold, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurface)
                     } else {
-                        Text("${totalLotSugQty} un", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF1976D2))
-                        Text(formatBR(totalLotSugVal), fontWeight = FontWeight.Bold, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${totalLotSugQty} un", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = Color(0xFF1976D2))
+                        Text(formatBR(totalLotSugVal), fontWeight = FontWeight.Bold, fontSize = 8.sp, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -678,12 +805,24 @@ fun InvestScreen(viewModel: StockViewModel) {
 }
 
 @Composable
-fun RecommendationsScreen(viewModel: StockViewModel) {
+fun RecommendationsScreen(viewModel: StockViewModel, currentFilter: String = "Todos") {
     val recs by viewModel.recommendations.collectAsState()
+    val filteredRecs = remember(recs, currentFilter) {
+        if (currentFilter == "Todos") recs
+        else recs.filter { asset ->
+            when (currentFilter) {
+                "Ações" -> asset is AssetData.Stock
+                "FII" -> asset is AssetData.Fii
+                "ETF" -> asset is AssetData.Etf
+                "BDR" -> asset is AssetData.Bdr
+                else -> true
+            }
+        }
+    }
     val selected = remember { mutableStateMapOf<String, Boolean>() }
     var investAmount by rememberSaveable { mutableStateOf("") }
     
-    val scored = remember(recs) { recs.map { it to viewModel.calculateScoreForAsset(it) } }
+    val scored = remember(filteredRecs) { filteredRecs.map { it to viewModel.calculateScoreForAsset(it) } }
     val sortedScored = remember(scored) {
         scored.sortedWith(compareByDescending<Pair<AssetData, Double>> { it.second }.thenBy { it.first.ticker })
     }

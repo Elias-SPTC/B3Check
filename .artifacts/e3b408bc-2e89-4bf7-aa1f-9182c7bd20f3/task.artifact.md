@@ -1,6 +1,6 @@
-- [ ] Add `showLots` state to `InvestScreen`
-- [ ] Implement toggleable header for Suggestion column
-- [ ] Rebalance column weights for 5-column layout
-- [ ] Merge "Unidades" and "Lotes" into a single column in the grid
-- [ ] Update Totals row to respect the toggle
-- [ ] Verify layout on Android (no line breaks) and Desktop
+- [x] Add `isEditMode` state to `InvestScreen` in `B3CheckUI.kt`
+- [x] Add Edit toggle button to the `Investir` header
+- [x] Implement the simplified Edit Mode UI with large fonts
+- [x] Ensure Edit Mode and Normal Mode synchronization
+- [x] Resolve structural integrity issues (braces fix)
+- [x] Verify functionality on Android and Desktop

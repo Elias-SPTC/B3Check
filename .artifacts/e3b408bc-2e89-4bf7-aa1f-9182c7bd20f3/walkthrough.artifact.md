@@ -1,30 +1,30 @@
-# Walkthrough - Reliable Data Synchronization (Restore vs Merge)
+# Walkthrough - Quick Edit Mode for InvestScreen
 
-I have resolved the data divergence issue between Android and Linux by implementing a more flexible import mechanism that allows users to force a full restoration of the database from a backup file.
+I have implemented a new "Quick Edit" feature in the "Investir" tab to make it much easier to update your portfolio data on mobile devices.
 
 ## Changes Made
 
-### Persistence Layer Enhancements
-
-#### [AssetDataSource.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/AssetDataSource.kt)
-Updated the `importBackup` interface to support a `force` parameter.
-
-#### [ManualAssetDatabase.kt](file:///home/elias/AndroidStudioProjects/B3Check/app/src/main/java/com/example/b3check/ManualAssetDatabase.kt) & [DesktopDataSource.kt](file:///home/elias/AndroidStudioProjects/B3Check/desktop/src/desktopMain/kotlin/DesktopDataSource.kt)
-Implemented the forced import logic:
-- When `force = true`, the local database/file is cleared before importing the backup data. This ensures absolute parity with the backup file, ignoring any local timestamps that might have blocked the update previously.
-
-### UI Improvements
+### UI Enhancements
 
 #### [B3CheckUI.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/B3CheckUI.kt)
-Added a confirmation dialog when importing a backup. Users can now choose between:
-- **Mesclar (Merge)**: Keeps the most recent version of each asset based on the `lastUpdated` timestamp (default behavior).
-- **Restaurar Tudo (Restore)**: Completely replaces local data with the backup file contents.
+
+I added a toggle mechanism to switch between the full simulation view and a simplified editing view.
+
+- **Entry Point**: A new "Edit" icon (Pencil) has been added to the top-right of the "Simulador de Aportes" header.
+- **Simplified View**: When active, the screen transforms into "Edição Rápida", showing only:
+    - **Ticker**: Bold and large (18sp) for easy identification.
+    - **Cotas & Preço**: Large editable fields (18sp font, 40dp height) designed for easy finger tapping.
+- **Real-time Sync**: Edits made in this mode are immediately applied to your database and will be reflected in the simulation results once you switch back.
+- **Exit**: You can return to the simulation by clicking the "Check" icon at the top or the "Concluir Edição" button at the bottom.
+
+### Structural Fixes
+Corrected a structural issue with curly braces in `InvestScreen` that was causing compilation errors across the project. The file is now fully valid and clean.
 
 ## Verification Results
 
-### Manual Verification Recommendation
-1. **Export from Android**: Generate a backup file.
-2. **Modify Linux**: Change a price or score on Linux manually (this creates a newer local timestamp).
-3. **Import on Linux**: Select the Android backup.
-4. **Choose "Restaurar Tudo"**: Verify that the Linux values are now exactly identical to the Android backup, even if they were "older".
-5. **Verify Parade**: Check the "Investir" tab totals on both devices; they should now match exactly.
+### Manual Verification
+1. **Navigate to "Investir"**: Tap the pencil icon at the top.
+2. **Edit Values**: Notice the larger text and fields. Update a few prices or share counts.
+3. **Finish Editing**: Tap "Concluir Edição".
+4. **Check Simulation**: Verify that the "Montante", "Unidades", and "Lotes" columns now reflect your updated data.
+5. **Mobile Comfort**: Confirm that the larger fields are significantly easier to tap and edit compared to the standard grid.

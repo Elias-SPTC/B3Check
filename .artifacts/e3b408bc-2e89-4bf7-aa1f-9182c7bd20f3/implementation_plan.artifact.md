@@ -1,48 +1,32 @@
-# Implementation Plan - Fix Data Consistency and Export/Import Coherence
+# Implementation Plan - Quick Edit Mode for InvestScreen
 
-Resolve the data loss issue during asset updates and ensure the export/import mechanisms correctly handle share counts, values, and metadata.
+Add a dedicated "Edit Mode" to the "Investir" tab that provides a simplified, large-font interface for updating share counts and prices on mobile devices.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Critical Bug Identified**: I found that editing values (like share counts or prices) currently wipes out all associated metadata (Pros, Cons, Neutros, and Analysis Sources) because the current update mechanism does not preserve fields that are not in the class constructor. I will implement a safe update pattern to fix this.
-
-> [!NOTE]
-> **Market Score Persistence**: The market score researched via AI was not updating the "last modified" timestamp, which could cause it to be ignored during backup imports if a local version existed. I will fix this to ensure all AI-researched data is correctly synchronized.
+> **Toggle Mechanism**: A new "Edit" icon will be added next to the "Simulador de Aportes" title. Clicking it will switch the entire screen content to the simplified editing view.
+> **Large Inputs**: In this mode, only "Ticker", "Cotas", and "Preço" will be shown. The font size will be significantly increased (to ~18sp) and input heights will be adjusted for easier finger tapping.
 
 ## Proposed Changes
 
-### [Core Data Models]
+### [UI Components]
 
-#### [MODIFY] [StockData.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/StockData.kt)
-- Implement `AssetData.updateMetadataFrom(other: AssetData)` to safely transfer `var` properties (`pros`, `cons`, `fieldSources`, `lastUpdated`, etc.) between instances.
+#### [MODIFY] [B3CheckUI.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/B3CheckUI.kt)
 
-### [ViewModel & Logic]
-
-#### [MODIFY] [StockViewModel.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/StockViewModel.kt)
-- **Refactor `saveManualAsset`**: Ensure it retrieves the existing asset from the database to preserve metadata before applying changes from the UI.
-- **Update Timestamps**: Ensure `researchMarketScore` and `researchAllMarketScores` update the `lastUpdated` field so changes are recognized by the backup system.
-- **Fix `recalculateAllScores`**: Add the missing database save operation so recalculated scores are persistent.
-
-### [Persistence Layer]
-
-#### [MODIFY] [ManualAssetDatabase.kt](file:///home/elias/AndroidStudioProjects/B3Check/app/src/main/java/com/example/b3check/ManualAssetDatabase.kt)
-- **Refine `importBackup`**: Ensure it handles identical timestamps by prioritizing the imported data if it contains more information (or just always overwriting if it's a backup).
+- **InvestScreen**:
+    - Add `var isEditMode by rememberSaveable { mutableStateOf(false) }`.
+    - Modify the header Row to include an `IconButton(Icons.Default.Edit)` or `TextButton("Editar")`.
+    - Conditional Content:
+        - **Normal Mode**: Keep the existing 5-column simulation grid.
+        - **Edit Mode**: Display a new `LazyColumn` with rows containing only Ticker, Cotas (TextField), and Preço (TextField) with large styling.
+    - Add a "Voltar" or "Salvar" button at the bottom of the Edit Mode to return to the simulation.
 
 ## Verification Plan
 
 ### Manual Verification
-1.  **Metadata Preservation Test**:
-    - Go to "Análise", add a "Pro" to an asset (e.g., PETR4).
-    - Go to "Investir", change the "Cotas" (Shares) of PETR4.
-    - Go back to "Análise" and verify the "Pro" is still present.
-2.  **Export/Import Coherence**:
-    - Research a Market Score for an asset.
-    - Export the backup.
-    - Delete the asset.
-    - Import the backup.
-    - Verify the asset is restored with the correct Score, Shares, and Price.
-3.  **Recalculation Persistence**:
-    - Run "Recalcular Notas" in the "Ativos" tab.
-    - Restart the app.
-    - Verify the notes remain updated.
+1.  **Open Investir Tab**: Verify the "Edit" button is visible.
+2.  **Enter Edit Mode**: Click the button and verify the UI changes to a simpler 3-column list with large text.
+3.  **Perform Edits**: Change a few share counts and prices. Verify that the keyboard doesn't cover the inputs (relying on the previously implemented `imePadding`).
+4.  **Exit Edit Mode**: Click "Concluir" or the back icon.
+5.  **Verify Results**: Ensure the simulation grid in Normal Mode immediately reflects the changes made in Edit Mode.
