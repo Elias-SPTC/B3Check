@@ -671,40 +671,22 @@ fun InvestScreen(viewModel: StockViewModel, currentFilter: String = "Todos") {
                         )
                         Text(asset.ticker, modifier = Modifier.weight(1.0f), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         
-                        BasicTextField(
-                            value = editStates["${asset.ticker}_c"] ?: formatBR(asset.sharesCount, true),
-                            onValueChange = { 
-                                editStates["${asset.ticker}_c"] = it
-                                val n = parseBR(it)
-                                val updated = when(asset) {
-                                    is AssetData.Stock -> asset.copy(sharesCount = n)
-                                    is AssetData.Fii -> asset.copy(sharesCount = n)
-                                    is AssetData.Etf -> asset.copy(sharesCount = n)
-                                    is AssetData.Bdr -> asset.copy(sharesCount = n)
-                                }
-                                viewModel.saveManualAsset(updated)
-                            },
+                        Text(
+                            text = formatBR(asset.sharesCount),
                             modifier = Modifier.weight(1.1f),
-                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.Bold),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            textAlign = TextAlign.End,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Bold
                         )
 
-                        BasicTextField(
-                            value = editStates["${asset.ticker}_p"] ?: formatBR(asset.currentPrice, true),
-                            onValueChange = { 
-                                editStates["${asset.ticker}_p"] = it
-                                val n = parseBR(it)
-                                val updated = when(asset) {
-                                    is AssetData.Stock -> asset.copy(currentPrice = n)
-                                    is AssetData.Fii -> asset.copy(currentPrice = n)
-                                    is AssetData.Etf -> asset.copy(currentPrice = n)
-                                    is AssetData.Bdr -> asset.copy(currentPrice = n)
-                                }
-                                viewModel.saveManualAsset(updated)
-                            },
+                        Text(
+                            text = formatBR(asset.currentPrice),
                             modifier = Modifier.weight(0.9f),
-                            textStyle = TextStyle(textAlign = TextAlign.End, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                            textAlign = TextAlign.End,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
                         )
 
                         Text(

@@ -1,30 +1,30 @@
-# Walkthrough - Quick Edit Mode for InvestScreen
+# Walkthrough - Simplified InvestScreen (Read-Only Grid)
 
-I have implemented a new "Quick Edit" feature in the "Investir" tab to make it much easier to update your portfolio data on mobile devices.
+I have simplified the "Investir" tab by making the main simulation grid read-only. All editing is now centralized in the optimized "Quick Edit" mode.
 
 ## Changes Made
 
-### UI Enhancements
+### UI Cleanup
 
 #### [B3CheckUI.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/B3CheckUI.kt)
 
-I added a toggle mechanism to switch between the full simulation view and a simplified editing view.
+In the standard simulation view (Normal Mode), I replaced the editable text fields with static labels.
 
-- **Entry Point**: A new "Edit" icon (Pencil) has been added to the top-right of the "Simulador de Aportes" header.
-- **Simplified View**: When active, the screen transforms into "Edição Rápida", showing only:
-    - **Ticker**: Bold and large (18sp) for easy identification.
-    - **Cotas & Preço**: Large editable fields (18sp font, 40dp height) designed for easy finger tapping.
-- **Real-time Sync**: Edits made in this mode are immediately applied to your database and will be reflected in the simulation results once you switch back.
-- **Exit**: You can return to the simulation by clicking the "Check" icon at the top or the "Concluir Edição" button at the bottom.
+- **Cotas**: Changed from `BasicTextField` to `Text`.
+- **Preço**: Changed from `BasicTextField` to `Text`.
 
-### Structural Fixes
-Corrected a structural issue with curly braces in `InvestScreen` that was causing compilation errors across the project. The file is now fully valid and clean.
+### Benefits
+- **Improved UX**: Prevents the keyboard from popping up accidentally while scrolling through results.
+- **Visual Stability**: The grid is now strictly for viewing results, creating a clear distinction between "Analysis/Review" and "Data Entry".
+- **Performance**: Reduced the number of active text input components, leading to smoother scrolling.
 
 ## Verification Results
 
 ### Manual Verification
-1. **Navigate to "Investir"**: Tap the pencil icon at the top.
-2. **Edit Values**: Notice the larger text and fields. Update a few prices or share counts.
-3. **Finish Editing**: Tap "Concluir Edição".
-4. **Check Simulation**: Verify that the "Montante", "Unidades", and "Lotes" columns now reflect your updated data.
-5. **Mobile Comfort**: Confirm that the larger fields are significantly easier to tap and edit compared to the standard grid.
+1. **Open Investir Tab**: Notice that tapping on "Cotas" or "Preço" no longer opens the keyboard.
+2. **Smooth Scrolling**: Scroll through the list and confirm the UI remains stable.
+3. **Edit Flow**:
+   - Tap the **Pencil icon** to enter Quick Edit Mode.
+   - Update values using the large, mobile-friendly inputs.
+   - Tap **Concluir**.
+   - Confirm the main grid immediately shows the new values as static text.

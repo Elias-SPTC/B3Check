@@ -1,6 +1,4 @@
-- [x] Add `isEditMode` state to `InvestScreen` in `B3CheckUI.kt`
-- [x] Add Edit toggle button to the `Investir` header
-- [x] Implement the simplified Edit Mode UI with large fonts
-- [x] Ensure Edit Mode and Normal Mode synchronization
-- [x] Resolve structural integrity issues (braces fix)
-- [x] Verify functionality on Android and Desktop
+- [x] Replace `BasicTextField` for Cotas with `Text` in `InvestScreen` normal mode
+- [x] Replace `BasicTextField` for Preço with `Text` in `InvestScreen` normal mode
+- [x] Ensure formatting and alignment are preserved
+- [x] Verify that Quick Edit mode still works correctly
