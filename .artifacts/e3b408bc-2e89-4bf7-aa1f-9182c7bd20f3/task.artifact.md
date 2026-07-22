@@ -1,4 +1,8 @@
-- [x] Replace `BasicTextField` for Cotas with `Text` in `InvestScreen` normal mode
-- [x] Replace `BasicTextField` for Preço with `Text` in `InvestScreen` normal mode
-- [x] Ensure formatting and alignment are preserved
-- [x] Verify that Quick Edit mode still works correctly
+- [x] Add settings icon button to `GlobalAiScreen` header
+- [x] Implement API Key entry dialog in `GlobalAiScreen`
+- [x] Add status and loading indicators to `GlobalAiScreen`
+- [x] Implement `LinearProgressIndicator` during analysis
+- [x] Verify functionality (key persistence and status display)
+- [x] Collect `aiStatus` in `StockAnalysisScreen`
+- [x] Add status banner with `LinearProgressIndicator` to `StockAnalysisScreen`
+- [x] Verify visual consistency between tabs

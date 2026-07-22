@@ -1,30 +1,25 @@
-# Walkthrough - Simplified InvestScreen (Read-Only Grid)
+# Walkthrough - AI Research Status in Analysis Tab
 
-I have simplified the "Investir" tab by making the main simulation grid read-only. All editing is now centralized in the optimized "Quick Edit" mode.
+I have implemented visual feedback and progress tracking in the "Análise" tab to keep you informed during market score research.
 
 ## Changes Made
 
-### UI Cleanup
+### Visual Feedback
 
 #### [B3CheckUI.kt](file:///home/elias/AndroidStudioProjects/B3Check/shared/src/commonMain/kotlin/com/example/b3check/B3CheckUI.kt)
 
-In the standard simulation view (Normal Mode), I replaced the editable text fields with static labels.
+I added a status banner in `StockAnalysisScreen` that reacts to the background research process triggered by the **Globe** icon.
 
-- **Cotas**: Changed from `BasicTextField` to `Text`.
-- **Preço**: Changed from `BasicTextField` to `Text`.
-
-### Benefits
-- **Improved UX**: Prevents the keyboard from popping up accidentally while scrolling through results.
-- **Visual Stability**: The grid is now strictly for viewing results, creating a clear distinction between "Analysis/Review" and "Data Entry".
-- **Performance**: Reduced the number of active text input components, leading to smoother scrolling.
+- **Progress Bar**: When you start a research, a `LinearProgressIndicator` appears along with the "Pesquisando..." text, showing that the app is actively working.
+- **Error & Warning Highlighting**:
+    - **Missing Key**: Shows an orange warning if the API key is not configured.
+    - **Errors**: Displays a red banner with an error icon if the research fails (e.g., network issue or invalid response).
+- **Auto-Hide**: The banner automatically disappears once the status returns to "Pronto", keeping the interface clean.
 
 ## Verification Results
 
 ### Manual Verification
-1. **Open Investir Tab**: Notice that tapping on "Cotas" or "Preço" no longer opens the keyboard.
-2. **Smooth Scrolling**: Scroll through the list and confirm the UI remains stable.
-3. **Edit Flow**:
-   - Tap the **Pencil icon** to enter Quick Edit Mode.
-   - Update values using the large, mobile-friendly inputs.
-   - Tap **Concluir**.
-   - Confirm the main grid immediately shows the new values as static text.
+1. **Globe Icon Action**: Navigate to "Análise", search for an asset, and tap the globe. Verify the status banner appears with a loading bar.
+2. **Success Case**: After a few seconds, the banner should vanish and the "Mercado" score should be updated.
+3. **Missing Key**: Remove the API key in the "IA Global" settings, then try the globe again in "Análise". Verify the orange warning correctly guides you to the settings.
+4. **Consistency**: Confirm that the colors and icons match the ones used in the "IA Global" tab for a unified look.

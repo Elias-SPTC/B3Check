@@ -131,11 +131,60 @@ fun GlobalAiScreen(viewModel: StockViewModel, onExport: (String, String) -> Unit
     var question by remember { mutableStateOf("") }
     val response by viewModel.globalAiResponse.collectAsState()
     val status by viewModel.aiStatus.collectAsState()
+    var showSettings by remember { mutableStateOf(false) }
+    var apiKeyInput by remember { mutableStateOf(viewModel.geminiApiKey) }
+
+    if (showSettings) {
+        AlertDialog(
+            onDismissRequest = { showSettings = false },
+            title = { Text("Configurar Gemini API", color = MaterialTheme.colorScheme.onSurface) },
+            text = {
+                Column {
+                    Text("Insira sua chave do Google Gemini para habilitar as funções de IA.", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.geminiApiKey = apiKeyInput
+                    showSettings = false
+                }) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSettings = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Inteligência Global da Carteira", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Inteligência Global", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+            IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Default.Settings, contentDescription = "Configurações", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+        
         Spacer(Modifier.height(8.dp))
-        Text("Faça perguntas analíticas sobre o conjunto total dos seus ativos salvos no banco de dados.", fontSize = 12.sp, color = Color.Gray)
+        Text("Análise técnica baseada em IA sobre o conjunto total dos seus ativos.", fontSize = 12.sp, color = Color.Gray)
+        
+        if (viewModel.geminiApiKey.isBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Surface(color = Color(0xFFFFF3E0), shape = MaterialTheme.shapes.small) {
+                Row(modifier = Modifier.padding(8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Chave API ausente. Clique na engrenagem para configurar.", color = Color(0xFFE65100), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
 
         Row(verticalAlignment = Alignment.Bottom) {
@@ -147,12 +196,34 @@ fun GlobalAiScreen(viewModel: StockViewModel, onExport: (String, String) -> Unit
                 decorationBox = { inner -> if (question.isEmpty()) Text("Sua pergunta...", color = Color.Gray); inner() }
             )
             Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = { if (question.isNotBlank()) viewModel.askAiGlobal(question) },
-                enabled = status != "Analisando Carteira..." && question.isNotBlank(),
-                contentPadding = PaddingValues(horizontal = 12.dp)
-            ) {
-                Text(if (status == "Analisando Carteira...") "..." else "Perguntar")
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(
+                    onClick = { if (question.isNotBlank()) viewModel.askAiGlobal(question) },
+                    enabled = status != "Analisando Carteira..." && question.isNotBlank() && viewModel.geminiApiKey.isNotBlank(),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text(if (status == "Analisando Carteira...") "..." else "Perguntar")
+                }
+            }
+        }
+
+        if (status != "Pronto") {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = status, 
+                    fontSize = 11.sp, 
+                    color = when {
+                        status.contains("Erro") -> Color.Red
+                        status.contains("Ausente") -> Color(0xFFE65100)
+                        else -> MaterialTheme.colorScheme.primary
+                    },
+                    fontWeight = FontWeight.Bold
+                )
+                if (status == "Analisando Carteira...") {
+                    Spacer(Modifier.width(8.dp))
+                    LinearProgressIndicator(modifier = Modifier.weight(1f).height(2.dp))
+                }
             }
         }
 
@@ -878,6 +949,7 @@ fun StockAnalysisScreen(viewModel: StockViewModel) {
     var tickerInput by rememberSaveable { mutableStateOf("") }
     val uiState by viewModel.uiState.collectAsState()
     val allAssets by viewModel.allAssets.collectAsState()
+    val aiStatus by viewModel.aiStatus.collectAsState()
 
     LaunchedEffect(uiState) { if (uiState is StockUiState.Success) tickerInput = (uiState as StockUiState.Success).data.ticker }
     LaunchedEffect(tickerInput) { if (tickerInput.length >= 4) viewModel.lookupTicker(tickerInput) else if (tickerInput.isEmpty()) viewModel.resetAnalysis() }
@@ -908,6 +980,53 @@ fun StockAnalysisScreen(viewModel: StockViewModel) {
                 }
             }
         )
+
+        if (aiStatus != "Pronto") {
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                color = when {
+                    aiStatus.contains("Erro") -> Color(0xFFFFEBEE)
+                    aiStatus.contains("Ausente") -> Color(0xFFFFF3E0)
+                    else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                },
+                shape = MaterialTheme.shapes.small
+            ) {
+                Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = when {
+                                aiStatus.contains("Erro") -> Icons.Default.Error
+                                aiStatus.contains("Ausente") -> Icons.Default.Warning
+                                else -> Icons.Default.Info
+                            },
+                            contentDescription = null,
+                            tint = when {
+                                aiStatus.contains("Erro") -> Color.Red
+                                aiStatus.contains("Ausente") -> Color(0xFFE65100)
+                                else -> MaterialTheme.colorScheme.primary
+                            },
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = aiStatus,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                aiStatus.contains("Erro") -> Color.Red
+                                aiStatus.contains("Ausente") -> Color(0xFFE65100)
+                                else -> MaterialTheme.colorScheme.onPrimaryContainer
+                            }
+                        )
+                    }
+                    if (aiStatus.startsWith("Pesquisando")) {
+                        Spacer(Modifier.height(4.dp))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(2.dp))
+                    }
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
         when (val state = uiState) {
             is StockUiState.Success -> {
